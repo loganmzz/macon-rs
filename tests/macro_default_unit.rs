@@ -1,6 +1,7 @@
 use macon::Builder;
 
-#[derive(Builder,PartialEq,Debug)]
+#[derive(Builder)]
+#[derive(PartialEq,Debug)]
 pub struct Foo;
 
 #[test]
