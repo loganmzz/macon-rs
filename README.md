@@ -2,7 +2,36 @@
 
 Another builder macro-based generator with its own idioms.
 
-"[Maçon](https://fr.wiktionary.org/wiki/ma%C3%A7on#Nom_commun_2)" is French translation for "[builder](https://www.wordreference.com/enfr/builder)"
+## Origin
+
+"[Maçon](https://fr.wiktionary.org/wiki/ma%C3%A7on#Nom_commun_2)" is French translation for "[builder](https://www.wordreference.com/enfr/builder)".
+
+Idea for creating a new builder generator comes from benchmarking solutions at: https://github.com/loganmzz/rust-benchmark-setter.
+
+## Usage
+
+[`macon` crate](https://crates.io/crates/macon) provides a derive macro:
+
+```rust
+#[macro_use] extern crate macon;
+
+#[derive(Builder)]
+struct MyType {
+  integer: i32,
+  string: String,
+}
+
+let _mytype: MyType = MyType::builder()
+    .integer(42)
+    .string(String::from("foobar"))
+    .build();
+```
+
+See [crate documentation](https://docs.rs/macon/latest/macon/) for more information about available options.
+
+## Version history
+
+See [CHANGELOG.md](./CHANGELOG.md)
 
 ## Development
 
