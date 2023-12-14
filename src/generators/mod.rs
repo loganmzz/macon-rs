@@ -12,9 +12,8 @@ pub use quote::{
     quote,
 };
 
-pub mod panic;
 pub mod typestate;
-pub mod result;
+pub mod result_panic;
 
 pub trait Generator {
     fn builder(&self) -> &crate::model::Builder;
@@ -41,9 +40,9 @@ pub trait Generator {
 impl From<Builder> for Box<dyn Generator> {
     fn from(builder: Builder) -> Self {
         match builder.mode {
-            Mode::Panic => Box::from(panic::PanicGenerator { builder }),
+            Mode::Panic => Box::from(result_panic::ResultPanicGenerator { builder }),
             Mode::Typestate => Box::from(typestate::StateGenerator { builder }),
-            Mode::Result => Box::from(result::ResultGenerator { builder }),
+            Mode::Result => Box::from(result_panic::ResultPanicGenerator { builder }),
         }
     }
 }

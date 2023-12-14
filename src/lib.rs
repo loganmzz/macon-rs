@@ -96,6 +96,44 @@
 //! assert!(myTypeResult.is_err());
 //! ```
 //!
+//! #### Tuple
+//!
+//! Blueprints:
+//! * [`blueprint_typestate_tuple.rs`](../../../tests/blueprint_typestate_tuple.rs)
+//! * [`blueprint_panic_tuple.rs`](../../../tests/blueprint_panic_tuple.rs)
+//! * [`blueprint_result_tuple.rs`](../../../tests/blueprint_result_tuple.rs)
+//!
+//! A tuple is a struct with unamed fields. Then `set<ordinal>()` is used as setter:
+//!
+//! ```
+//! # #[macro_use] extern crate macon;
+//! #[derive(Builder)]
+//! struct MyTuple(
+//!   i32,
+//!   String,
+//! );
+//!
+//! let _mytuple: MyTuple = MyTuple::builder()
+//!     .set0(42)
+//!     .set1(String::from("foobar"))
+//!     .build();
+//! ```
+//!
+//! Only for `Typestate` mode, you can chain `set()`-calls to assign values in order:
+//!
+//! ```
+//! # #[macro_use] extern crate macon;
+//! # #[derive(Builder)]
+//! # struct MyTuple(
+//! #   i32,
+//! #   String,
+//! # );
+//! let _mytuple: MyTuple = MyTuple::builder()
+//!     .set(42)
+//!     .set(String::from("foobar"))
+//!     .build();
+//! ```
+//!
 
 use syn::{
     parse_macro_input,

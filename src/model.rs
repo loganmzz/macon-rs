@@ -1,4 +1,8 @@
-use quote::format_ident;
+use proc_macro2::{
+    Literal,
+    TokenStream,
+};
+use quote::{format_ident, quote};
 use syn::{
     Attribute,
     Data,
@@ -19,6 +23,7 @@ pub struct Builder {
     pub target: Ident,
     pub mode: Mode,
     pub properties: Vec<Property>,
+    pub is_tuple: bool,
 }
 
 #[derive(Debug,PartialEq)]
@@ -30,9 +35,11 @@ pub enum Mode {
 
 #[derive(Debug,PartialEq)]
 pub struct Property {
+    pub ordinal: usize,
     pub name: String,
     pub ident: Ident,
     pub ty: Type,
+    pub is_tuple: bool,
 }
 
 impl Default for Mode {
@@ -48,6 +55,7 @@ impl Default for Builder {
             target: format_ident!("Anonymous"),
             mode: Default::default(),
             properties: Default::default(),
+            is_tuple: false,
         }
     }
 }
@@ -98,9 +106,10 @@ impl Builder {
             Data::Struct(data_struct) => {
                 match data_struct.fields {
                     Fields::Named(fields_named) => {
+                        self.is_tuple = false;
                         self.properties = Vec::default();
-                        for field in fields_named.named.into_iter() {
-                            self.properties.push(Property::from_field(field)?);
+                        for (ordinal, field) in fields_named.named.into_iter().enumerate() {
+                            self.properties.push(Property::from_field(false, ordinal, field)?);
                         }
                         Ok(())
                     },
@@ -108,8 +117,13 @@ impl Builder {
                         self.properties = Vec::default();
                         Ok(())
                     },
-                    Fields::Unnamed(_) => {
-                        Err(Error::new_spanned(data_struct.fields, "Unsupported unamed data struct"))
+                    Fields::Unnamed(fields_unamed) => {
+                        self.is_tuple = true;
+                        self.properties = Vec::default();
+                        for (ordinal, field)  in fields_unamed.unnamed.into_iter().enumerate() {
+                            self.properties.push(Property::from_field(true, ordinal, field)?);
+                        }
+                        Ok(())
                     },
                 }
             },
@@ -124,15 +138,25 @@ impl Builder {
 }
 
 impl Property {
-    pub fn from_field(field: Field) -> Result<Self> {
-        if let Some(ident) = field.ident {
-            Ok(Self {
-                name: ident.to_string(),
-                ident,
-                ty: field.ty,
-            })
+    pub fn from_field(is_tuple: bool, ordinal: usize, field: Field) -> Result<Self> {
+        let ident = field.ident.unwrap_or_else(|| format_ident!("v{}", ordinal));
+        let name = ident.to_string();
+        Ok(Self {
+            ordinal,
+            name,
+            ident,
+            ty: field.ty,
+            is_tuple,
+        })
+    }
+
+    pub fn id(&self) -> TokenStream {
+        if self.is_tuple {
+            let literal = Literal::usize_unsuffixed(self.ordinal);
+            quote!(#literal)
         } else {
-            Err(Error::new_spanned(field, "Unamed field not supported"))
+            let ident = &self.ident;
+            quote!(#ident)
         }
     }
 }

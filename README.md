@@ -25,6 +25,17 @@ let _mytype: MyType = MyType::builder()
     .integer(42)
     .string(String::from("foobar"))
     .build();
+
+#[derive(Builder)]
+struct MyTuple(
+  i32,
+  String,
+);
+
+let _mytuple: MyTuple = MyTuple::builder()
+    .set(42)
+    .set(String::from("foobar"))
+    .build();
 ```
 
 See [crate documentation](https://docs.rs/macon/latest/macon/) for more information about available options.
