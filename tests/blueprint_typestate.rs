@@ -12,17 +12,17 @@ impl Foobar {
 }
 
 // struct_builder
+// struct_builder / struct_builder_named
 pub struct FoobarBuilder<FOO=(), BAR=()> {
-    marker: core::marker::PhantomData<(FOO,BAR)>,
     foo: FOO,
     bar: BAR,
 }
 
 // default_builder
+// default_builder / default_builder_named
 impl core::default::Default for FoobarBuilder {
     fn default() -> Self {
         Self {
-            marker: core::marker::PhantomData,
             foo: core::default::Default::default(),
             bar: core::default::Default::default(),
         }
@@ -30,28 +30,31 @@ impl core::default::Default for FoobarBuilder {
 }
 
 // impl_builder
-// impl_builder / impl_builder_setters
+// impl_builder / impl_builder_setter
+// impl_builder / impl_builder_setter / impl_builder_setter_named
 impl<BAR> FoobarBuilder<(),BAR> {
     pub fn foo(self, foo: u8) -> FoobarBuilder<u8,BAR> {
         FoobarBuilder {
-            marker: core::marker::PhantomData,
             foo,
             bar: self.bar,
         }
     }
 }
 
+// impl_builder / impl_builder_setter
+// impl_builder / impl_builder_setter / impl_builder_setter_named
 impl<FOO> FoobarBuilder<FOO,()> {
     pub fn bar(self, bar: String) -> FoobarBuilder<FOO,String> {
         FoobarBuilder {
-            marker: core::marker::PhantomData,
             bar,
             foo: self.foo,
         }
     }
 }
 
+// impl_builder
 // impl_builder / impl_builder_build
+// impl_builder / impl_builder_build / impl_builder_build_named
 impl FoobarBuilder<u8,String> {
     pub fn build(self) -> Foobar {
         Foobar {

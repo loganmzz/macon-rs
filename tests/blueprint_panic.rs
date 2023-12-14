@@ -5,6 +5,7 @@ pub struct Foobar {
 }
 
 // struct_builder
+// struct_builder / struct_builder_named
 #[derive(Default)]
 pub struct FoobarBuilder {
     foo: Option<u8>,
@@ -21,6 +22,7 @@ impl Foobar {
 // impl_builder
 impl FoobarBuilder {
     // impl_builder_setters
+    // impl_builder_setters / impl_builder_setters_named
     pub fn foo(&mut self, foo: u8) -> &mut Self {
         self.foo = foo.into();
         self
@@ -32,6 +34,7 @@ impl FoobarBuilder {
     }
 
     // impl_builder_build
+    // impl_builder_build / impl_builder_build_named
     pub fn build(&mut self) -> Foobar {
         let mut errors: Vec<String> = vec![];
 
