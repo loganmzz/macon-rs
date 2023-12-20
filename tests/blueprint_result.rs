@@ -23,13 +23,13 @@ impl Foobar {
 impl FoobarBuilder {
     // impl_builder_setters
     // impl_builder_setters / impl_builder_setters_named
-    pub fn foo(mut self, foo: u8) -> Self {
-        self.foo = foo.into();
+    pub fn foo<FOO: Into<u8>>(mut self, foo: FOO) -> Self {
+        self.foo = foo.into().into();
         self
     }
 
-    pub fn bar(mut self, bar: String) -> Self {
-        self.bar = bar.into();
+    pub fn bar<BAR: Into<String>>(mut self, bar: BAR) -> Self {
+        self.bar = bar.into().into();
         self
     }
 
@@ -61,7 +61,7 @@ fn builder_build_ok() {
     let builder = Foobar::builder()
         .foo(2);
     let built = builder
-        .bar(String::from("foobar"))
+        .bar("foobar")
         .build();
     assert_eq!(
         Ok(Foobar {
@@ -75,7 +75,7 @@ fn builder_build_ok() {
 #[test]
 fn builder_build_missing_foo() {
     let built = Foobar::builder()
-        .bar(String::from("foobar"))
+        .bar("foobar")
         .build();
     assert_eq!(
         Err(String::from("Field foo is missing")),

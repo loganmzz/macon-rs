@@ -14,7 +14,7 @@ fn builder_build() {
     let builder = Foobar::builder()
         .foo(2);
     let built = builder
-        .bar(String::from("foobar"))
+        .bar("foobar")
         .build();
     assert_eq!(
         Foobar {

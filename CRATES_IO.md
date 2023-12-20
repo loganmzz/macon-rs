@@ -134,3 +134,18 @@ let _mytuple: MyTuple = MyTuple::builder()
     .set(String::from("foobar"))
     .build();
 ```
+
+#### `Into` argument
+
+Setter function argument is generic over `Into` to ease conversion (especially for `&str`):
+
+```rust
+#[macro_use] extern crate macon;
+#[derive(Builder)]
+struct MyTuple(
+  String,
+);
+let _mytuple: MyTuple = MyTuple::builder()
+    .set("foobar")
+    .build();
+```

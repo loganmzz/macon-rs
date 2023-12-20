@@ -151,6 +151,7 @@ impl StateGenerator {
 
     pub fn impl_builder_setter_tuple(&self, field: &Property) -> TokenStream {
         let builder_name = &self.builder.ident;
+        let typestate = self.field_typestate(field);
         let struct_state_from_ordered = self.with_fields(|f| {
             if f.ordinal < field.ordinal {
                 let ty = &f.ty;
@@ -198,7 +199,7 @@ impl StateGenerator {
         let values = self.with_fields(|f| {
             if f.name == field.name {
                 let ident = &f.ident;
-                quote!(#ident,)
+                quote!(#ident.into(),)
             } else {
                 let id = f.id();
                 quote!(self.#id,)
@@ -206,12 +207,12 @@ impl StateGenerator {
         });
         quote! {
             impl #builder_name<#struct_state_from_ordered> {
-                pub fn set(self, #ident: #ty) -> #builder_name<#struct_state_to_ordered> {
+                pub fn set<#typestate: Into<#ty>>(self, #ident: #typestate) -> #builder_name<#struct_state_to_ordered> {
                     self.#setter(#ident)
                 }
             }
             impl<#impl_state> #builder_name<#struct_state_from_unordered> {
-                pub fn #setter(self, #ident: #ty) -> #builder_name<#struct_state_to_unordered> {
+                pub fn #setter<#typestate: Into<#ty>>(self, #ident: #typestate) -> #builder_name<#struct_state_to_unordered> {
                     #builder_name(#values)
                 }
             }
@@ -238,6 +239,7 @@ impl StateGenerator {
             }
         });
         let ident = &field.ident;
+        let typestate = self.field_typestate(field);
         let ty = &field.ty;
         let struct_state_to = self.with_fields(|f| {
             if f.name == field.name {
@@ -251,14 +253,14 @@ impl StateGenerator {
         let values = self.with_fields(|f| {
             let ident = &f.ident;
             if f.name == field.name {
-                quote!(#ident,)
+                quote!(#ident: #ident.into(),)
             } else {
                 quote!(#ident: self.#ident,)
             }
         });
         quote! {
             impl<#impl_state> #builder_name<#struct_state_from> {
-                pub fn #ident(self, #ident: #ty) -> #builder_name<#struct_state_to> {
+                pub fn #ident<#typestate: Into<#ty>>(self, #ident: #typestate) -> #builder_name<#struct_state_to> {
                     #builder_name {
                         #values
                     }
@@ -322,6 +324,6 @@ impl StateGenerator {
     }
 
     pub fn field_typestate(&self, field: &Property) -> Ident {
-        format_ident!("{}", field.name.to_uppercase())
+        field.typevar()
     }
 }

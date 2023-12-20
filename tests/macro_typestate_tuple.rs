@@ -9,7 +9,7 @@ pub struct Foobar(u8,String);
 fn builder_build() {
     let built = Foobar::builder()
         .set(2)
-        .set(String::from("foobar"))
+        .set("foobar")
         .build();
     assert_eq!(
         Foobar(

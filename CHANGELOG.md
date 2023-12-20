@@ -10,6 +10,7 @@ Source: https://keepachangelog.com/
 ### Added
 
 - Tuple support
+- Setters are generic over `Into`
 
 ### Changed
 

@@ -12,7 +12,7 @@ pub struct Foobar {
 fn builder_build() {
     let built = Foobar::builder()
         .foo(2)
-        .bar(String::from("foobar"))
+        .bar("foobar")
         .build();
     assert_eq!(
         Foobar {

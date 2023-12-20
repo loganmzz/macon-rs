@@ -23,13 +23,13 @@ impl Foobar {
 impl FoobarBuilder {
     // impl_builder_setters
     // impl_builder_setters / impl_builder_setters_tuple
-    pub fn set0(mut self, value: u8) -> Self {
-        self.0 = value.into();
+    pub fn set0<V0: Into<u8>>(mut self, value: V0) -> Self {
+        self.0 = value.into().into();
         self
     }
 
-    pub fn set1(mut self, value: String) -> Self {
-        self.1 = value.into();
+    pub fn set1<V1: Into<String>>(mut self, value: V1) -> Self {
+        self.1 = value.into().into();
         self
     }
 
@@ -62,7 +62,7 @@ fn builder_build() {
     let builder = Foobar::builder()
         .set0(2);
     let built = builder
-        .set1(String::from("foobar"))
+        .set1("foobar")
         .build();
     assert_eq!(
         Foobar(

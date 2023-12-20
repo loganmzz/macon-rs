@@ -15,7 +15,7 @@ fn builder_build_ok() {
     let builder = Foobar::builder()
         .foo(2);
     let built = builder
-        .bar(String::from("foobar"))
+        .bar("foobar")
         .build();
     assert_eq!(
         Ok(Foobar {
@@ -29,7 +29,7 @@ fn builder_build_ok() {
 #[test]
 fn builder_build_missing_foo() {
     let built = Foobar::builder()
-        .bar(String::from("foobar"))
+        .bar("foobar")
         .build();
     assert_eq!(
         Err(String::from("Field foo is missing")),
