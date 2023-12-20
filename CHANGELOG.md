@@ -14,6 +14,7 @@ Source: https://keepachangelog.com/
 ### Changed
 
 - Improved documentation
+- Remove mutable borrows for Panic/Result builder functions
 
 ## 0.2.0
 

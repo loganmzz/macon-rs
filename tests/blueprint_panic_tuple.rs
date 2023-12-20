@@ -23,19 +23,19 @@ impl Foobar {
 impl FoobarBuilder {
     // impl_builder_setters
     // impl_builder_setters / impl_builder_setters_tuple
-    pub fn set0(&mut self, value: u8) -> &mut Self {
+    pub fn set0(mut self, value: u8) -> Self {
         self.0 = value.into();
         self
     }
 
-    pub fn set1(&mut self, value: String) -> &mut Self {
+    pub fn set1(mut self, value: String) -> Self {
         self.1 = value.into();
         self
     }
 
     // impl_builder_build
     // impl_builder_build / impl_builder_build_tuple
-    pub fn build(&mut self) -> Foobar {
+    pub fn build(self) -> Foobar {
         let mut errors: Vec<String> = vec![];
 
         if self.0.is_none() {
@@ -49,8 +49,8 @@ impl FoobarBuilder {
             panic!("{}", errors.join("\n"))
         } else {
             Foobar(
-                self.0.take().unwrap(),
-                self.1.take().unwrap(),
+                self.0.unwrap(),
+                self.1.unwrap(),
             )
         }
     }
@@ -59,8 +59,9 @@ impl FoobarBuilder {
 // test
 #[test]
 fn builder_build() {
-    let built = Foobar::builder()
-        .set0(2)
+    let builder = Foobar::builder()
+        .set0(2);
+    let built = builder
         .set1(String::from("foobar"))
         .build();
     assert_eq!(
