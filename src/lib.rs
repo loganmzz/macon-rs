@@ -19,11 +19,12 @@
 //! ```
 //!
 //! * adds a builder struct (`<TargetStruct>Builder`)
-//! * build struct implements [Default]
+//! * build struct implements [`Default`]
 //! * adds a `builder()` function to target struct to initialize a new builder
 //! * each target struct field can be set with function of same name and parameter of same type
 //! * use `build()` function to create new target struct instance
 //! * any unset field will make `build()` call not compile (default)
+//! * setter argument is generic over [`Into`]
 //!
 //! ### Features
 //!
@@ -131,6 +132,21 @@
 //! let _mytuple: MyTuple = MyTuple::builder()
 //!     .set(42)
 //!     .set(String::from("foobar"))
+//!     .build();
+//! ```
+//!
+//! #### `Into` argument
+//!
+//! Setter function argument is generic over `Into` to ease conversion (especially for `&str`):
+//!
+//! ```
+//! # #[macro_use] extern crate macon;
+//! # #[derive(Builder)]
+//! # struct MyTuple(
+//! #   String,
+//! # );
+//! let _mytuple: MyTuple = MyTuple::builder()
+//!     .set("foobar")
 //!     .build();
 //! ```
 //!

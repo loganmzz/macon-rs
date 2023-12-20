@@ -29,26 +29,26 @@ impl core::default::Default for FoobarBuilder {
 // impl_builder / impl_builder_setter
 // impl_builder / impl_builder_setter / impl_builder_setter_tuple
 impl FoobarBuilder<(),()> {
-    pub fn set(self, v0: u8) -> FoobarBuilder<u8,()> {
+    pub fn set<V0: Into<u8>>(self, v0: V0) -> FoobarBuilder<u8,()> {
         self.set0(v0)
     }
 }
 impl<V1> FoobarBuilder<(),V1> {
-    pub fn set0(self, v0: u8) -> FoobarBuilder<u8,V1> {
-        FoobarBuilder(v0, self.1)
+    pub fn set0<V0: Into<u8>>(self, v0: V0) -> FoobarBuilder<u8,V1> {
+        FoobarBuilder(v0.into(), self.1)
     }
 }
 
 // impl_builder / impl_builder_setter
 // impl_builder / impl_builder_setter / impl_builder_setter_tuple
 impl FoobarBuilder<u8,()> {
-    pub fn set(self, v1: String) -> FoobarBuilder<u8,String> {
+    pub fn set<V1: Into<String>>(self, v1: V1) -> FoobarBuilder<u8,String> {
         self.set1(v1)
     }
 }
 impl<V0> FoobarBuilder<V0,()> {
-    pub fn set1(self, v1: String) -> FoobarBuilder<V0,String> {
-        FoobarBuilder(self.0, v1)
+    pub fn set1<V1: Into<String>>(self, v1: V1) -> FoobarBuilder<V0,String> {
+        FoobarBuilder(self.0, v1.into())
     }
 }
 
@@ -69,7 +69,7 @@ impl FoobarBuilder<u8,String> {
 fn builder_build_set() {
     let built = Foobar::builder()
         .set(2)
-        .set(String::from("foobar"))
+        .set("foobar")
         .build();
     assert_eq!(
         Foobar(
@@ -84,7 +84,7 @@ fn builder_build_set() {
 fn builder_build_set_n() {
     let built = Foobar::builder()
         .set0(2)
-        .set1(String::from("foobar"))
+        .set1("foobar")
         .build();
     assert_eq!(
         Foobar(

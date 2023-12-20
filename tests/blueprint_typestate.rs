@@ -33,9 +33,9 @@ impl core::default::Default for FoobarBuilder {
 // impl_builder / impl_builder_setter
 // impl_builder / impl_builder_setter / impl_builder_setter_named
 impl<BAR> FoobarBuilder<(),BAR> {
-    pub fn foo(self, foo: u8) -> FoobarBuilder<u8,BAR> {
+    pub fn foo<FOO: Into<u8>>(self, foo: FOO) -> FoobarBuilder<u8,BAR> {
         FoobarBuilder {
-            foo,
+            foo: foo.into(),
             bar: self.bar,
         }
     }
@@ -44,9 +44,9 @@ impl<BAR> FoobarBuilder<(),BAR> {
 // impl_builder / impl_builder_setter
 // impl_builder / impl_builder_setter / impl_builder_setter_named
 impl<FOO> FoobarBuilder<FOO,()> {
-    pub fn bar(self, bar: String) -> FoobarBuilder<FOO,String> {
+    pub fn bar<BAR: Into<String>>(self, bar: BAR) -> FoobarBuilder<FOO,String> {
         FoobarBuilder {
-            bar,
+            bar: bar.into(),
             foo: self.foo,
         }
     }
@@ -69,7 +69,7 @@ impl FoobarBuilder<u8,String> {
 fn builder_build() {
     let built = Foobar::builder()
         .foo(2)
-        .bar(String::from("foobar"))
+        .bar("foobar")
         .build();
     assert_eq!(
         Foobar {

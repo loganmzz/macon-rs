@@ -23,7 +23,7 @@ struct MyType {
 
 let _mytype: MyType = MyType::builder()
     .integer(42)
-    .string(String::from("foobar"))
+    .string("foobar")
     .build();
 
 #[derive(Builder)]
@@ -34,7 +34,7 @@ struct MyTuple(
 
 let _mytuple: MyTuple = MyTuple::builder()
     .set(42)
-    .set(String::from("foobar"))
+    .set("foobar")
     .build();
 ```
 

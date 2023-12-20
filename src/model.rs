@@ -159,6 +159,10 @@ impl Property {
             quote!(#ident)
         }
     }
+
+    pub fn typevar(&self) -> Ident {
+        format_ident!("{}", self.name.to_uppercase())
+    }
 }
 
 #[cfg(test)]

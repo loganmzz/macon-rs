@@ -80,11 +80,12 @@ impl ResultPanicGenerator {
             } else {
                 f.id()
             };
+            let typevar = f.typevar();
             let id = f.id();
             let ty = &f.ty;
             quote! {
-                pub fn #method(mut self, value: #ty) -> Self {
-                    self.#id = value.into();
+                pub fn #method<#typevar: Into<#ty>>(mut self, value: #typevar) -> Self {
+                    self.#id = value.into().into();
                     self
                 }
             }
