@@ -23,19 +23,19 @@ impl Foobar {
 impl FoobarBuilder {
     // impl_builder_setters
     // impl_builder_setters / impl_builder_setters_named
-    pub fn foo(&mut self, foo: u8) -> &mut Self {
+    pub fn foo(mut self, foo: u8) -> Self {
         self.foo = foo.into();
         self
     }
 
-    pub fn bar(&mut self, bar: String) -> &mut Self {
+    pub fn bar(mut self, bar: String) -> Self {
         self.bar = bar.into();
         self
     }
 
     // impl_builder_build
     // impl_builder_build / impl_builder_build_named
-    pub fn build(&mut self) -> Foobar {
+    pub fn build(self) -> Foobar {
         let mut errors: Vec<String> = vec![];
 
         if self.foo.is_none() {
@@ -49,8 +49,8 @@ impl FoobarBuilder {
             panic!("{}", errors.join("\n"))
         } else {
             Foobar {
-                foo: self.foo.take().unwrap(),
-                bar: self.bar.take().unwrap(),
+                foo: self.foo.unwrap(),
+                bar: self.bar.unwrap(),
             }
         }
     }
@@ -59,8 +59,9 @@ impl FoobarBuilder {
 // test
 #[test]
 fn builder_build() {
-    let built = Foobar::builder()
-        .foo(2)
+    let builder = Foobar::builder()
+        .foo(2);
+    let built = builder
         .bar(String::from("foobar"))
         .build();
     assert_eq!(

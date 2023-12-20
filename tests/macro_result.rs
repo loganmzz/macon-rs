@@ -12,8 +12,9 @@ pub struct Foobar {
 // test
 #[test]
 fn builder_build_ok() {
-    let built = Foobar::builder()
-        .foo(2)
+    let builder = Foobar::builder()
+        .foo(2);
+    let built = builder
         .bar(String::from("foobar"))
         .build();
     assert_eq!(

@@ -83,7 +83,7 @@ impl ResultPanicGenerator {
             let id = f.id();
             let ty = &f.ty;
             quote! {
-                pub fn #method(&mut self, value: #ty) -> &mut Self {
+                pub fn #method(mut self, value: #ty) -> Self {
                     self.#id = value.into();
                     self
                 }
@@ -112,7 +112,7 @@ impl ResultPanicGenerator {
         let create = if self.builder.is_tuple {
             let assign = self.with_fields(|f| {
                 let id = f.id();
-                quote!(self.#id.take().unwrap(),)
+                quote!(self.#id.unwrap(),)
             });
             quote! {
                 #target(
@@ -122,7 +122,7 @@ impl ResultPanicGenerator {
         } else {
             let assign = self.with_fields(|f| {
                 let id = f.id();
-                quote!(#id: self.#id.take().unwrap(),)
+                quote!(#id: self.#id.unwrap(),)
             });
             quote! {
                 #target {
@@ -141,7 +141,7 @@ impl ResultPanicGenerator {
             _ => panic!("Unsupported mode {:?}", self.builder.mode),
         };
         quote! {
-            pub fn build(&mut self) -> #output {
+            pub fn build(self) -> #output {
                 let mut errors: Vec<String> = vec![];
 
                 #check_fields
