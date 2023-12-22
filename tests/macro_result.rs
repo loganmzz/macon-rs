@@ -36,3 +36,19 @@ fn builder_build_missing_foo() {
         built,
     );
 }
+
+// #[test]
+// fn builder_into() {
+//     let built: Foobar = Foobar::builder()
+//         .foo(3)
+//         .bar("builder_into")
+//         .try_into()
+//         .unwrap();
+//     assert_eq!(
+//         Foobar {
+//             foo: 3,
+//             bar: String::from("builder_into"),
+//         },
+//         built,
+//     );
+// }

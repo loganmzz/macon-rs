@@ -55,6 +55,16 @@ impl FoobarBuilder {
     }
 }
 
+// impl_builder
+// impl_builder / impl_builder_from
+impl TryFrom<FoobarBuilder> for Foobar {
+    type Error = String;
+
+    fn try_from(builder: FoobarBuilder) -> Result<Self, Self::Error> {
+        builder.build()
+    }
+}
+
 // test
 #[test]
 fn builder_build_ok() {
@@ -79,6 +89,22 @@ fn builder_build_missing_foo() {
         .build();
     assert_eq!(
         Err(String::from("Field foo is missing")),
+        built,
+    );
+}
+
+#[test]
+fn builder_into() {
+    let built: Foobar = Foobar::builder()
+        .foo(3)
+        .bar("builder_into")
+        .try_into()
+        .unwrap();
+    assert_eq!(
+        Foobar {
+            foo: 3,
+            bar: String::from("builder_into"),
+        },
         built,
     );
 }

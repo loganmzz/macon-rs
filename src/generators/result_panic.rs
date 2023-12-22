@@ -63,11 +63,13 @@ impl ResultPanicGenerator {
         let builder_name = &self.builder.ident;
         let impl_builder_setters = self.impl_builder_setters();
         let impl_builder_build = self.impl_builder_build();
+        let impl_builder_from = self.impl_builder_from();
         quote! {
             impl #builder_name {
                 #impl_builder_setters
                 #impl_builder_build
             }
+            #impl_builder_from
         }
     }
 
@@ -153,6 +155,31 @@ impl ResultPanicGenerator {
                     #success
                 }
             }
+        }
+    }
+
+    pub fn impl_builder_from(&self) -> TokenStream {
+        let builder_name = &self.builder.ident;
+        let target = &self.builder.target;
+        match self.builder.mode {
+            Mode::Panic =>
+                quote! {
+                    impl From<#builder_name> for #target {
+                        fn from(builder: #builder_name) -> Self {
+                            builder.build()
+                        }
+                    }
+                },
+            Mode::Result =>
+                quote! {
+                    impl TryFrom<#builder_name> for #target {
+                        type Error = String;
+                        fn try_from(builder: #builder_name) -> Result<Self, Self::Error> {
+                            builder.build()
+                        }
+                    }
+                },
+            _ => panic!("Unsupported mode {:?}", self.builder.mode),
         }
     }
 }

@@ -150,6 +150,21 @@
 //!     .build();
 //! ```
 //!
+//! #### Implement `Into`
+//!
+//! Builders implement [`Into`] for target type (and reverse [`From`] also). Except for `Result` mode which uses [`TryInto`] / [`TryFrom`].
+//!
+//! ```
+//! # #[macro_use] extern crate macon;
+//! # #[derive(Builder)]
+//! # struct MyStruct {
+//! #   value: String,
+//! # };
+//! let _mytuple: MyStruct = MyStruct::builder()
+//!     .value("foobar")
+//!     .into();
+//! ```
+//!
 
 use syn::{
     parse_macro_input,

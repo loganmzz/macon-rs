@@ -64,6 +64,14 @@ impl FoobarBuilder<u8,String> {
     }
 }
 
+// impl_builder
+// impl_builder / impl_builder_from
+impl From<FoobarBuilder<u8,String>> for Foobar {
+    fn from(builder: FoobarBuilder<u8,String>) -> Self {
+        builder.build()
+    }
+}
+
 // test
 #[test]
 fn builder_build() {
@@ -75,6 +83,21 @@ fn builder_build() {
         Foobar {
             foo: 2,
             bar: String::from("foobar"),
+        },
+        built,
+    );
+}
+
+#[test]
+fn builder_into() {
+    let built: Foobar = Foobar::builder()
+        .foo(3)
+        .bar("builder_into")
+        .into();
+    assert_eq!(
+        Foobar {
+            foo: 3,
+            bar: String::from("builder_into"),
         },
         built,
     );
