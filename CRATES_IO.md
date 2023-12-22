@@ -149,3 +149,18 @@ let _mytuple: MyTuple = MyTuple::builder()
     .set("foobar")
     .build();
 ```
+
+#### Implement `Into`
+
+Builders implement [`Into`](https://doc.rust-lang.org/std/convert/trait.Into.html) for target type (and reverse [`From`](https://doc.rust-lang.org/std/convert/trait.From.html) also). Except for `Result` mode which uses [`TryInto`](https://doc.rust-lang.org/std/convert/trait.TryInto.html) / [`TryFrom`](https://doc.rust-lang.org/std/convert/trait.TryFrom.html).
+
+```rust
+#[macro_use] extern crate macon;
+#[derive(Builder)]
+struct MyStruct {
+  value: String,
+};
+let _mytuple: MyStruct = MyStruct::builder()
+    .value("foobar")
+    .into();
+```

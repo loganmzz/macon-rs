@@ -135,9 +135,11 @@ impl StateGenerator {
     pub fn impl_builder(&self) -> TokenStream {
         let setters = self.with_fields(|f| self.impl_builder_setter(f));
         let build = self.impl_builder_build();
+        let from_impl = self.impl_builder_from();
         quote! {
             #setters
             #build
+            #from_impl
         }
     }
 
@@ -318,6 +320,22 @@ impl StateGenerator {
                     #target {
                         #assign
                     }
+                }
+            }
+        }
+    }
+
+    pub fn impl_builder_from(&self) -> TokenStream {
+        let builder_name = &self.builder.ident;
+        let target = &self.builder.target;
+        let final_state = self.with_fields(|f| {
+            let ty = &f.ty;
+            quote!(#ty,)
+        });
+        quote! {
+            impl From<#builder_name<#final_state>> for #target {
+                fn from(builder: #builder_name<#final_state>) -> Self {
+                    builder.build()
                 }
             }
         }

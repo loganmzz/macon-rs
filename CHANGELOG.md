@@ -10,7 +10,8 @@ Source: https://keepachangelog.com/
 ### Added
 
 - Tuple support
-- Setters are generic over `Into`
+- Setters are generic over [`Into`](https://doc.rust-lang.org/std/convert/trait.Into.html)
+- Builders implement [`Into`](https://doc.rust-lang.org/std/convert/trait.Into.html)
 
 ### Changed
 
