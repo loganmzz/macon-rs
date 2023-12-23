@@ -37,18 +37,18 @@ fn builder_build_missing_foo() {
     );
 }
 
-// #[test]
-// fn builder_into() {
-//     let built: Foobar = Foobar::builder()
-//         .set0(3)
-//         .set1("builder_into")
-//         .try_into()
-//         .unwrap();
-//     assert_eq!(
-//         Foobar(
-//             3,
-//             String::from("builder_into"),
-//         ),
-//         built,
-//     );
-// }
+#[test]
+fn builder_into() {
+    let built: Foobar = Foobar::builder()
+        .set0(3)
+        .set1("builder_into")
+        .try_into()
+        .unwrap();
+    assert_eq!(
+        Foobar(
+            3,
+            String::from("builder_into"),
+        ),
+        built,
+    );
+}
