@@ -1,8 +1,16 @@
+// #############################################################################
+// ################################### INPUT ###################################
+// #############################################################################
+
 #[derive(PartialEq,Debug)]
 pub struct Foobar {
     foo: u8,
     bar: String,
+    option: Option<String>,
 }
+// #############################################################################
+// ############################## IMPLEMENTATION ###############################
+// #############################################################################
 
 // struct_builder
 // struct_builder / struct_builder_named
@@ -10,6 +18,7 @@ pub struct Foobar {
 pub struct FoobarBuilder {
     foo: Option<u8>,
     bar: Option<String>,
+    option: Option<String>,
 }
 
 // impl_target
@@ -33,6 +42,11 @@ impl FoobarBuilder {
         self
     }
 
+    pub fn option<OPTION: Into<String>>(mut self, option: OPTION) -> Self {
+        self.option = option.into().into();
+        self
+    }
+
     // impl_builder_build
     pub fn build(self) -> Result<Foobar, String> {
         let mut errors: Vec<String> = vec![];
@@ -50,6 +64,7 @@ impl FoobarBuilder {
             Ok(Foobar {
                 foo: self.foo.unwrap(),
                 bar: self.bar.unwrap(),
+                option: self.option,
             })
         }
     }
@@ -65,9 +80,31 @@ impl TryFrom<FoobarBuilder> for Foobar {
     }
 }
 
-// test
+
+// #############################################################################
+// ################################### TESTS ###################################
+// #############################################################################
+
 #[test]
-fn builder_build_ok() {
+fn builder_build_full_ok() {
+    let builder = Foobar::builder()
+        .foo(2);
+    let built = builder
+        .bar("foobar")
+        .option("optional")
+        .build();
+    assert_eq!(
+        Ok(Foobar {
+            foo: 2,
+            bar: String::from("foobar"),
+            option: Some(String::from("optional")),
+        }),
+        built,
+    );
+}
+
+#[test]
+fn builder_build_partial_ok() {
     let builder = Foobar::builder()
         .foo(2);
     let built = builder
@@ -77,6 +114,7 @@ fn builder_build_ok() {
         Ok(Foobar {
             foo: 2,
             bar: String::from("foobar"),
+            option: None,
         }),
         built,
     );
@@ -98,12 +136,14 @@ fn builder_into() {
     let built: Foobar = Foobar::builder()
         .foo(3)
         .bar("builder_into")
+        .option("optional")
         .try_into()
         .unwrap();
     assert_eq!(
         Foobar {
             foo: 3,
             bar: String::from("builder_into"),
+            option: Some(String::from("optional")),
         },
         built,
     );

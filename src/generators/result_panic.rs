@@ -25,9 +25,9 @@ impl ResultPanicGenerator {
     }
     pub fn struct_builder_tuple(&self) -> TokenStream {
         let fields = self.with_fields(|f| {
-            let ty = &f.ty;
+            let ty = f.option.value().unwrap_or(&f.ty);
             quote! {
-                Option<#ty>,
+                ::core::option::Option<#ty>,
             }
         });
         let builder_name = &self.builder.ident;
@@ -41,9 +41,9 @@ impl ResultPanicGenerator {
     pub fn struct_builder_named(&self) -> TokenStream {
         let fields = self.with_fields(|f| {
             let ident = &f.ident;
-            let ty = &f.ty;
+            let ty = f.option.value().unwrap_or(&f.ty);
             quote! {
-                pub #ident: Option<#ty>,
+                pub #ident: ::core::option::Option<#ty>,
             }
         });
         let builder_name = &self.builder.ident;
@@ -57,8 +57,8 @@ impl ResultPanicGenerator {
 
     /// Generate `impl` block for generated builder struct:
     ///
-    /// * fluent field setters ([impl_builder_setters])
-    /// * final `build()` function ([impl_builder_build])
+    /// * fluent field setters ([`Self::impl_builder_setters()`])
+    /// * final `build()` function ([`Self::impl_builder_build()`])
     pub fn impl_builder(&self) -> TokenStream {
         let builder_name = &self.builder.ident;
         let impl_builder_setters = self.impl_builder_setters();
@@ -84,7 +84,7 @@ impl ResultPanicGenerator {
             };
             let typevar = f.typevar();
             let id = f.id();
-            let ty = &f.ty;
+            let ty = f.option.value().unwrap_or(&f.ty);
             quote! {
                 pub fn #method<#typevar: Into<#ty>>(mut self, value: #typevar) -> Self {
                     self.#id = value.into().into();
@@ -104,6 +104,9 @@ impl ResultPanicGenerator {
         };
 
         let check_fields = self.with_fields(|f| {
+            if f.option.is_enabled() {
+                return quote!();
+            }
             let id = f.id();
             let message = format!("Field {} is missing", id);
             quote! {
@@ -115,7 +118,11 @@ impl ResultPanicGenerator {
         let create = if self.builder.is_tuple {
             let assign = self.with_fields(|f| {
                 let id = f.id();
-                quote!(self.#id.unwrap(),)
+                if f.option.is_enabled() {
+                    quote!(self.#id,)
+                } else {
+                    quote!(self.#id.unwrap(),)
+                }
             });
             quote! {
                 #target(
@@ -125,7 +132,11 @@ impl ResultPanicGenerator {
         } else {
             let assign = self.with_fields(|f| {
                 let id = f.id();
-                quote!(#id: self.#id.unwrap(),)
+                if f.option.is_enabled() {
+                    quote!(#id: self.#id,)
+                } else {
+                    quote!(#id: self.#id.unwrap(),)
+                }
             });
             quote! {
                 #target {
@@ -191,9 +202,9 @@ impl Generator for ResultPanicGenerator {
 
     /// Generate all declarations:
     ///
-    /// * `impl` block to add `builder()` function to target struct ([impl_target])
-    /// * builder struct ([struct_builder])
-    /// * `impl` block for generated builder struct ([impl_builder])
+    /// * `impl` block to add `builder()` function to target struct ([`Self::impl_target()`])
+    /// * builder struct ([`Self::struct_builder()`])
+    /// * `impl` block for generated builder struct ([`Self::impl_builder()`])
     fn all(&self) -> TokenStream {
         let impl_target = self.impl_target();
         let struct_builder = self.struct_builder();

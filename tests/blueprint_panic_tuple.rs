@@ -1,14 +1,24 @@
+// #############################################################################
+// ################################### INPUT ###################################
+// #############################################################################
+
 #[derive(PartialEq,Debug)]
 pub struct Foobar(
     u8,
     String,
+    Option<String>,
 );
+
+// #############################################################################
+// ############################## IMPLEMENTATION ###############################
+// #############################################################################
 
 // struct_builder
 // struct_builder / struct_builder_tuple
 #[derive(Default)]
 pub struct FoobarBuilder(
     Option<u8>,
+    Option<String>,
     Option<String>,
 );
 
@@ -33,6 +43,11 @@ impl FoobarBuilder {
         self
     }
 
+    pub fn set2<V2: Into<String>>(mut self, value: V2) -> Self {
+        self.2 = value.into().into();
+        self
+    }
+
     // impl_builder_build
     // impl_builder_build / impl_builder_build_tuple
     pub fn build(self) -> Foobar {
@@ -51,6 +66,7 @@ impl FoobarBuilder {
             Foobar(
                 self.0.unwrap(),
                 self.1.unwrap(),
+                self.2,
             )
         }
     }
@@ -64,9 +80,30 @@ impl From<FoobarBuilder> for Foobar {
     }
 }
 
-// test
+// #############################################################################
+// ################################### TESTS ###################################
+// #############################################################################
+
 #[test]
-fn builder_build() {
+fn builder_build_full() {
+    let builder = Foobar::builder()
+        .set0(2);
+    let built = builder
+        .set1("foobar")
+        .set2("optional")
+        .build();
+    assert_eq!(
+        Foobar(
+            2,
+            String::from("foobar"),
+            Some(String::from("optional")),
+        ),
+        built,
+    );
+}
+
+#[test]
+fn builder_build_partial() {
     let builder = Foobar::builder()
         .set0(2);
     let built = builder
@@ -76,6 +113,7 @@ fn builder_build() {
         Foobar(
             2,
             String::from("foobar"),
+            None,
         ),
         built,
     );
@@ -86,11 +124,13 @@ fn builder_into() {
     let built: Foobar = Foobar::builder()
         .set0(3)
         .set1("builder_into")
+        .set2("optional")
         .into();
     assert_eq!(
         Foobar(
             3,
             String::from("builder_into"),
+            Some(String::from("optional")),
         ),
         built,
     );

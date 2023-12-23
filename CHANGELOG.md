@@ -10,13 +10,15 @@ Source: https://keepachangelog.com/
 ### Added
 
 - Tuple support
-- Setters are generic over [`Into`](https://doc.rust-lang.org/std/convert/trait.Into.html)
-- Builders implement [`Into`](https://doc.rust-lang.org/std/convert/trait.Into.html)
+- Setters are generic over [`Into`](https://doc.rust-lang.org/core/convert/trait.Into.html)
+- Builders implement [`Into`](https://doc.rust-lang.org/core/convert/trait.Into.html)
 
 ### Changed
 
 - Improved documentation
 - Remove mutable borrows for Panic/Result builder functions
+- [`Option`](https://doc.rust-lang.org/core/option/enum.Option.html) fields are not mandatory anymore
+- [`Option`](https://doc.rust-lang.org/core/option/enum.Option.html) field setters used wrapped type
 
 ## 0.2.0
 
