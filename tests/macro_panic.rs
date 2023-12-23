@@ -25,17 +25,17 @@ fn builder_build() {
     );
 }
 
-// #[test]
-// fn builder_into() {
-//     let built: Foobar = Foobar::builder()
-//         .foo(3)
-//         .bar("builder_into")
-//         .into();
-//     assert_eq!(
-//         Foobar {
-//             foo: 3,
-//             bar: String::from("builder_into"),
-//         },
-//         built,
-//     );
-// }
+#[test]
+fn builder_into() {
+    let built: Foobar = Foobar::builder()
+        .foo(3)
+        .bar("builder_into")
+        .into();
+    assert_eq!(
+        Foobar {
+            foo: 3,
+            bar: String::from("builder_into"),
+        },
+        built,
+    );
+}
