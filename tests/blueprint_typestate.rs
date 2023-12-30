@@ -21,7 +21,7 @@ impl Foobar {
 }
 
 // struct_builder
-// struct_builder / struct_builder_named
+#[derive(Default)]
 pub struct FoobarBuilder<FOO=(), BAR=(), OPTION=()> {
     foo: FOO,
     bar: BAR,
@@ -29,22 +29,8 @@ pub struct FoobarBuilder<FOO=(), BAR=(), OPTION=()> {
     __optional_set: ::core::marker::PhantomData<OPTION>,
 }
 
-// default_builder
-// default_builder / default_builder_named
-impl ::core::default::Default for FoobarBuilder {
-    fn default() -> Self {
-        Self {
-            foo: ::core::default::Default::default(),
-            bar: ::core::default::Default::default(),
-            option: ::core::default::Default::default(),
-            __optional_set: ::core::default::Default::default(),
-        }
-    }
-}
-
 // impl_builder
 // impl_builder / impl_builder_setter
-// impl_builder / impl_builder_setter / impl_builder_setter_named
 impl<BAR,OPTION,> FoobarBuilder<(),BAR,OPTION,> {
     pub fn foo<FOO: ::core::convert::Into<u8>>(self, foo: FOO) -> FoobarBuilder<u8,BAR,OPTION,> {
         FoobarBuilder {
@@ -57,7 +43,6 @@ impl<BAR,OPTION,> FoobarBuilder<(),BAR,OPTION,> {
 }
 
 // impl_builder / impl_builder_setter
-// impl_builder / impl_builder_setter / impl_builder_setter_named
 impl<FOO,OPTION,> FoobarBuilder<FOO,(),OPTION,> {
     pub fn bar<BAR: ::core::convert::Into<String>>(self, bar: BAR) -> FoobarBuilder<FOO,String,OPTION,> {
         FoobarBuilder {
@@ -70,7 +55,6 @@ impl<FOO,OPTION,> FoobarBuilder<FOO,(),OPTION,> {
 }
 
 // impl_builder / impl_builder_setter
-// impl_builder / impl_builder_setter / impl_builder_setter_named
 impl<FOO,BAR,> FoobarBuilder<FOO,BAR,(),> {
     pub fn option<OPTION: ::core::convert::Into<String>>(self, option: OPTION) -> FoobarBuilder<FOO,BAR,Option<String>,> {
         FoobarBuilder {
@@ -93,7 +77,6 @@ impl<FOO,BAR,> FoobarBuilder<FOO,BAR,(),> {
 
 // impl_builder
 // impl_builder / impl_builder_build
-// impl_builder / impl_builder_build / impl_builder_build_named
 impl<OPTION> FoobarBuilder<u8,String,OPTION> {
     pub fn build(self) -> Foobar {
         Foobar {
@@ -105,7 +88,6 @@ impl<OPTION> FoobarBuilder<u8,String,OPTION> {
 }
 
 // impl_builder
-// impl_builder / impl_builder_from
 impl<OPTION> ::core::convert::From<FoobarBuilder<u8,String,OPTION,>> for Foobar {
     fn from(builder: FoobarBuilder<u8,String,OPTION,>) -> Self {
         builder.build()

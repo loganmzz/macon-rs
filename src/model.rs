@@ -1,10 +1,14 @@
+use ::std::borrow::Cow;
+
 use proc_macro2::{
+    Delimiter,
+    Group,
     Literal,
     TokenStream,
 };
 use quote::{
     format_ident,
-    quote,
+    quote, ToTokens,
 };
 use syn::{
     AngleBracketedGenericArguments,
@@ -30,7 +34,7 @@ pub struct Builder {
     pub target: Ident,
     pub vis: Visibility,
     pub mode: Mode,
-    pub properties: Vec<Property>,
+    pub properties: Properties,
     pub is_tuple: bool,
     pub option: bool,
 }
@@ -65,24 +69,15 @@ impl<T> Setting<T> {
     }
 
     pub fn is_undefined(&self) -> bool {
-        match self {
-            Self::Undefined => true,
-            _ => false,
-        }
+        matches!(self, Self::Undefined)
     }
 
     pub fn is_disabled(&self) -> bool {
-        match self {
-            Self::Disabled => true,
-            _ => false,
-        }
+        matches!(self, Self::Disabled)
     }
 
     pub fn is_enabled(&self) -> bool {
-        match self {
-            Self::Enabled(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Enabled(_))
     }
 
     pub fn value(&self) -> Option<&T> {
@@ -109,6 +104,29 @@ impl<T> From<T> for Setting<T> {
 pub struct PropertySettings {
     pub option: Setting<Type>,
 }
+
+#[derive(Debug,Default,)]
+pub struct Properties(Vec<Property>);
+impl ::core::ops::Deref for Properties {
+    type Target = Vec<Property>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl ::core::ops::DerefMut for Properties {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+impl Properties {
+    pub fn to_token<F: Fn(&Property)->TokenStream>(&self, to_token: F) -> TokenStream {
+        self
+            .iter()
+            .map(to_token)
+            .collect()
+    }
+}
+
 
 #[derive(Debug)]
 pub struct Property {
@@ -196,21 +214,23 @@ impl Builder {
                 match data_struct.fields {
                     Fields::Named(fields_named) => {
                         self.is_tuple = false;
-                        self.properties = Vec::default();
+                        self.properties = Default::default();
                         for (ordinal, field) in fields_named.named.into_iter().enumerate() {
-                            self.properties.push(Property::from_field(self, false, ordinal, field)?);
+                            let value = Property::from_field(self, false, ordinal, field)?;
+                            self.properties.push(value);
                         }
                         Ok(())
                     },
                     Fields::Unit => {
-                        self.properties = Vec::default();
+                        self.properties = Default::default();
                         Ok(())
                     },
                     Fields::Unnamed(fields_unamed) => {
                         self.is_tuple = true;
-                        self.properties = Vec::default();
+                        self.properties = Default::default();
                         for (ordinal, field)  in fields_unamed.unnamed.into_iter().enumerate() {
-                            self.properties.push(Property::from_field(self, true, ordinal, field)?);
+                            let value = Property::from_field(self, true, ordinal, field)?;
+                            self.properties.push(value);
                         }
                         Ok(())
                     },
@@ -223,6 +243,18 @@ impl Builder {
                 Err(Error::new_spanned(u.union_token, "union is not supported"))
             },
         }
+    }
+
+    pub fn delimiter(&self) -> Delimiter {
+        if self.is_tuple {
+            Delimiter::Parenthesis
+        } else {
+            Delimiter::Brace
+        }
+    }
+
+    pub fn group(&self, stream: TokenStream) -> TokenStream {
+        Group::new(self.delimiter(), stream).to_token_stream()
     }
 }
 
@@ -295,20 +327,6 @@ impl Property {
         })
     }
 
-    pub fn id(&self) -> TokenStream {
-        if self.is_tuple {
-            let literal = Literal::usize_unsuffixed(self.ordinal);
-            quote!(#literal)
-        } else {
-            let ident = &self.ident;
-            quote!(#ident)
-        }
-    }
-
-    pub fn typevar(&self) -> Ident {
-        format_ident!("{}", self.name.to_uppercase())
-    }
-
     pub fn read_path(ty: &Type) -> (String, Option<&AngleBracketedGenericArguments>) {
         match ty {
             Type::Path(typepath) => {
@@ -328,6 +346,206 @@ impl Property {
                 ("".into(), None,)
             }
         }
+    }
+
+    pub fn id(&self) -> TokenStream {
+        if self.is_tuple {
+            let literal = Literal::usize_unsuffixed(self.ordinal);
+            quote!(#literal)
+        } else {
+            let ident = &self.ident;
+            quote!(#ident)
+        }
+    }
+
+    pub fn typevar(&self) -> Ident {
+        format_ident!("{}", self.name.to_uppercase())
+    }
+
+    pub fn ty_into(&self) -> &Type {
+        self.option.value().unwrap_or(&self.ty)
+    }
+
+    pub fn setter(&self) -> Cow<Ident> {
+        if self.is_tuple {
+            Cow::Owned(format_ident!("set{}", self.ordinal))
+        } else {
+            Cow::Borrowed(&self.ident)
+        }
+    }
+
+    pub fn setter_none(&self) -> Ident {
+        format_ident!("{}_none", self.setter())
+    }
+
+    pub fn prefix(&self) -> TokenStream {
+        if self.is_tuple {
+            quote!()
+        } else {
+            let ident = &self.ident;
+            quote!(#ident:)
+        }
+    }
+
+    pub fn assign(&self, target: &Property, is_none: bool) -> TokenStream {
+        let prefix = self.prefix();
+        let value = if self.name == target.name {
+            if is_none {
+                quote!(::core::option::Option::None)
+            } else {
+                let ident = &self.ident;
+                if self.option.is_enabled() {
+                    quote!(#ident.into().into())
+                } else {
+                    quote!(#ident.into())
+                }
+            }
+        } else {
+            let id = self.id();
+            quote!(self.#id)
+        };
+        quote!(#prefix #value,)
+    }
+
+    pub fn typestate(&self, is_var: Option<bool>) -> TokenStream {
+        match is_var {
+            None => quote!((),),
+            Some(false) => {
+                let ty = &self.ty;
+                quote!(#ty,)
+            },
+            Some(true) => {
+                let typevar = self.typevar();
+                quote!(#typevar,)
+            },
+        }
+    }
+
+    pub fn typestate_init(&self) -> TokenStream {
+        let prefix = self.prefix();
+        if self.option.is_enabled() {
+            let ty = &self.ty;
+            quote!(#prefix #ty,)
+        } else {
+            let typevar = self.typevar();
+            quote!(#prefix #typevar,)
+        }
+    }
+
+    pub fn typestate_optional_marker(&self) -> TokenStream {
+        if self.option.is_enabled() {
+            let typevar = self.typevar();
+            quote!(#typevar,)
+        } else {
+            quote!()
+        }
+    }
+
+    pub fn typestate_state(&self, target: &Property, ordered: bool, is_set: bool) -> TokenStream {
+        if ordered {
+            if is_set {
+                if self.ordinal <= target.ordinal {
+                    self.typestate(Some(false))
+                } else {
+                    self.typestate(None)
+                }
+            } else if self.ordinal < target.ordinal {
+                    self.typestate(Some(false))
+            } else {
+                self.typestate(None)
+            }
+        } else if self.name == target.name {
+            if is_set {
+                self.typestate(Some(false))
+            } else {
+                self.typestate(None)
+            }
+        } else {
+            self.typestate(Some(true))
+        }
+    }
+
+    pub fn typestate_state_final(&self) -> TokenStream {
+        if self.option.is_enabled() {
+            self.typestate(Some(true))
+        } else {
+            self.typestate(Some(false))
+        }
+    }
+
+    pub fn typestate_setter_impl(&self, target: &Property) -> TokenStream {
+        if self.name == target.name {
+            quote!()
+        } else {
+            self.typestate(Some(true))
+        }
+    }
+
+    pub fn typestate_build(&self) -> TokenStream {
+        let id = self.id();
+        let prefix = self.prefix();
+        quote!(#prefix self.#id,)
+    }
+
+    pub fn result_field(&self) -> TokenStream {
+        let prefix = self.prefix();
+        let ty = self.ty_into();
+        quote!(#prefix ::core::option::Option<#ty>,)
+    }
+
+    pub fn result_build(&self) -> TokenStream {
+        let prefix = self.prefix();
+        let id = self.id();
+        if self.option.is_enabled() {
+            quote!(#prefix self.#id,)
+        } else {
+            quote!(#prefix self.#id.unwrap(),)
+        }
+    }
+}
+
+impl Properties {
+    pub fn typestate_default(&self) -> TokenStream {
+        self.to_token(|f| {
+            let typestate = f.typevar();
+            quote!(#typestate=(),)
+        })
+    }
+
+    pub fn typestate_init(&self) -> TokenStream {
+        self.to_token(|p| p.typestate_init())
+    }
+
+    pub fn typestate_optional_marker(&self) -> TokenStream {
+        self.to_token(|p| p.typestate_optional_marker())
+    }
+
+    pub fn typestate_state(&self, target: &Property, is_ordered: bool, is_set: bool) -> TokenStream {
+        self.to_token(|p| p.typestate_state(target, is_ordered, is_set))
+    }
+
+    pub fn typestate_state_final(&self) -> TokenStream {
+        self.to_token(|p| p.typestate_state_final())
+    }
+
+    pub fn typestate_setter_impl(&self, target: &Property) -> TokenStream {
+        self.to_token(|p| p.typestate_setter_impl(target))
+    }
+
+    pub fn typestate_build(&self) -> TokenStream {
+        self.to_token(|p| p.typestate_build())
+    }
+
+    pub fn result_fields(&self) -> TokenStream {
+        self.to_token(|p| p.result_field())
+    }
+
+    pub fn result_build(&self) -> TokenStream {
+        self.to_token(|p| p.result_build())
+    }
+
+    pub fn assign(&self, target: &Property, is_none: bool) -> TokenStream {
+        self.to_token(|p| p.assign(target, is_none))
     }
 }
 
@@ -414,7 +632,7 @@ pub mod tests {
         assert_eq!(builder.ident, format_ident!("WithOptionBuilder"), "builder.ident");
         assert_eq!(builder.target, format_ident!("WithOption"), "builder.target");
 
-        let mut iter = builder.properties.into_iter();
+        let mut iter = builder.properties.0.into_iter();
 
         let optional = iter.next().expect("builder.properties[0]");
         assert_eq!(optional.ident, format_ident!("optional"));
@@ -439,7 +657,7 @@ pub mod tests {
         assert_eq!(builder.ident, format_ident!("DisabledOptionAtStructBuilder"), "builder.ident");
         assert_eq!(builder.target, format_ident!("DisabledOptionAtStruct"), "builder.target");
 
-        let mut iter = builder.properties.into_iter();
+        let mut iter = builder.properties.0.into_iter();
 
         let optional0 = iter.next().expect("builder.properties[0]");
         assert_eq!(optional0.ident, format_ident!("optional0"), "builder.properties[0]");
@@ -461,29 +679,4 @@ pub mod tests {
         assert_eq!(&path, "MyStruct");
         assert_eq!(args, None);
     }
-
-    // #[test]
-    // pub fn property_read_path2() {
-    //     fn assert_ident(actual: Type, expected: &'static str) {
-    //         if let Type::Path(typepath) = actual {
-    //             assert!(typepath.path.is_ident(expected), "expected={}", expected);
-    //         } else {
-    //             panic!("not a path");
-    //         }
-    //     }
-    //     for (actual,expected) in [
-    //         (parse_quote!(MyStruct), "MyStruct"),
-    //         (parse_quote!(std::option::Option), "Option"),
-    //         (parse_quote!(::std::option::Option), "::std::Option"),
-    //     ] {
-    //         assert_ident(actual, expected);
-    //     }
-    // }
-
-    // #[test]
-    // pub fn property_read_attrs() {
-    //     let attr: Attribute = parse_quote!(#[builder(mode=Panic,defaults(Option))]);
-    //     println!("{:#?}", attr);
-    //     panic!("");
-    // }
 }

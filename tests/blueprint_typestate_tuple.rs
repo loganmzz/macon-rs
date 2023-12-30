@@ -16,7 +16,7 @@ impl Foobar {
 }
 
 // struct_builder
-// struct_builder / struct_builder_tuple
+#[derive(Default)]
 pub struct FoobarBuilder<V0=(), V1=(), V2=(),>(
     V0,
     V1,
@@ -24,29 +24,8 @@ pub struct FoobarBuilder<V0=(), V1=(), V2=(),>(
     ::core::marker::PhantomData<V2>,
 );
 
-
-// default_builder
-// default_builder / default_builder_tuple
-impl ::core::default::Default for FoobarBuilder {
-    fn default() -> Self {
-        Self(
-            ::core::default::Default::default(),
-            ::core::default::Default::default(),
-            ::core::default::Default::default(),
-            ::core::default::Default::default(),
-        )
-    }
-}
-
-
 // impl_builder
 // impl_builder / impl_builder_setter
-// impl_builder / impl_builder_setter / impl_builder_setter_tuple
-impl FoobarBuilder<(),(),(),> {
-    pub fn set<V0: ::core::convert::Into<u8>>(self, v0: V0) -> FoobarBuilder<u8,(),(),> {
-        self.set0(v0)
-    }
-}
 impl<V1,V2,> FoobarBuilder<(),V1,V2,> {
     pub fn set0<V0: ::core::convert::Into<u8>>(self, v0: V0) -> FoobarBuilder<u8,V1,V2> {
         FoobarBuilder(
@@ -57,14 +36,13 @@ impl<V1,V2,> FoobarBuilder<(),V1,V2,> {
         )
     }
 }
-
-// impl_builder / impl_builder_setter
-// impl_builder / impl_builder_setter / impl_builder_setter_tuple
-impl FoobarBuilder<u8,(),(),> {
-    pub fn set<V1: ::core::convert::Into<String>>(self, v1: V1) -> FoobarBuilder<u8,String,(),> {
-        self.set1(v1)
+impl FoobarBuilder<(),(),(),> {
+    pub fn set<V0: ::core::convert::Into<u8>>(self, v0: V0) -> FoobarBuilder<u8,(),(),> {
+        self.set0(v0)
     }
 }
+
+// impl_builder / impl_builder_setter
 impl<V0,V2,> FoobarBuilder<V0,(),V2,> {
     pub fn set1<V1: ::core::convert::Into<String>>(self, v1: V1) -> FoobarBuilder<V0,String,V2,> {
         FoobarBuilder(
@@ -75,17 +53,13 @@ impl<V0,V2,> FoobarBuilder<V0,(),V2,> {
         )
     }
 }
-
-// impl_builder / impl_builder_setter
-// impl_builder / impl_builder_setter / impl_builder_setter_tuple
-impl FoobarBuilder<u8,String,(),> {
-    pub fn set<V2: ::core::convert::Into<String>>(self, v2: V2) -> FoobarBuilder<u8,String,Option<String>,> {
-        self.set2(v2)
-    }
-    pub fn none(self) -> FoobarBuilder<u8,String,Option<String>,> {
-        self.set2_none()
+impl FoobarBuilder<u8,(),(),> {
+    pub fn set<V1: ::core::convert::Into<String>>(self, v1: V1) -> FoobarBuilder<u8,String,(),> {
+        self.set1(v1)
     }
 }
+
+// impl_builder / impl_builder_setter
 impl<V0,V1,> FoobarBuilder<V0,V1,(),> {
     pub fn set2<V2: ::core::convert::Into<String>>(self, v2: V2) -> FoobarBuilder<V0,V1,Option<String>,> {
         FoobarBuilder(
@@ -104,10 +78,17 @@ impl<V0,V1,> FoobarBuilder<V0,V1,(),> {
         )
     }
 }
+impl FoobarBuilder<u8,String,(),> {
+    pub fn set<V2: ::core::convert::Into<String>>(self, v2: V2) -> FoobarBuilder<u8,String,Option<String>,> {
+        self.set2(v2)
+    }
+    pub fn none(self) -> FoobarBuilder<u8,String,Option<String>,> {
+        self.set2_none()
+    }
+}
 
 // impl_builder
 // impl_builder / impl_builder_build
-// impl_builder / impl_builder_build / impl_builder_build_tuple
 impl<OPTION> FoobarBuilder<u8,String,OPTION,> {
     pub fn build(self) -> Foobar {
         Foobar(

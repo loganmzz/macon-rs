@@ -14,7 +14,6 @@ pub struct Foobar(
 // #############################################################################
 
 // struct_builder
-// struct_builder / struct_builder_tuple
 #[derive(Default)]
 pub struct FoobarBuilder(Option<u8>,Option<String>,Option<String>,);
 
@@ -28,7 +27,6 @@ impl Foobar {
 // impl_builder
 impl FoobarBuilder {
     // impl_builder_setters
-    // impl_builder_setters / impl_builder_setters_tuple
     pub fn set0<V0: Into<u8>>(mut self, value: V0) -> Self {
         self.0 = value.into().into();
         self
@@ -43,7 +41,6 @@ impl FoobarBuilder {
     }
 
     // impl_builder_build
-    // impl_builder_build / impl_builder_build_tuple
     pub fn build(self) -> Result<Foobar, String> {
         let mut errors: Vec<String> = vec![];
 

@@ -1,6 +1,7 @@
 pub use crate::model::{
     Builder,
     Mode,
+    Properties,
     Property,
 };
 pub use proc_macro2::{
@@ -16,7 +17,11 @@ pub mod typestate;
 pub mod result_panic;
 
 pub trait Generator {
-    fn builder(&self) -> &crate::model::Builder;
+    fn builder(&self) -> &Builder;
+
+    fn properties(&self) -> &Properties {
+        &self.builder().properties
+    }
 
 
     /// Generate all declarations (content vary on strategy)
@@ -29,7 +34,7 @@ pub trait Generator {
         quote! {
             impl #target {
                 pub fn builder() -> #builder_name {
-                    <#builder_name as core::default::Default>::default()
+                    <#builder_name as ::core::default::Default>::default()
                 }
             }
         }
@@ -40,9 +45,33 @@ pub trait Generator {
 impl From<Builder> for Box<dyn Generator> {
     fn from(builder: Builder) -> Self {
         match builder.mode {
-            Mode::Panic => Box::from(result_panic::ResultPanicGenerator { builder }),
-            Mode::Typestate => Box::from(typestate::StateGenerator { builder }),
-            Mode::Result => Box::from(result_panic::ResultPanicGenerator { builder }),
+            Mode::Panic => Box::from(result_panic::ResultPanicGenerator::new(builder)),
+            Mode::Typestate => Box::from(typestate::StateGenerator::new(builder)),
+            Mode::Result => Box::from(result_panic::ResultPanicGenerator::new(builder)),
         }
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    #[test]
+    fn check_as_ref() {
+        struct Foo {
+            foo: usize,
+        }
+        impl Foo {
+            fn display(&self) {
+                println!("foo={}", self.foo);
+            }
+        }
+        struct Foobar(Foo);
+        impl ::core::ops::Deref for Foobar {
+            type Target = Foo;
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+        let foobar = Foobar(Foo { foo: 42 });
+        foobar.display();
     }
 }

@@ -13,7 +13,6 @@ pub struct Foobar {
 // #############################################################################
 
 // struct_builder
-// struct_builder / struct_builder_named
 #[derive(Default)]
 pub struct FoobarBuilder {
     foo: Option<u8>,
@@ -31,7 +30,6 @@ impl Foobar {
 // impl_builder
 impl FoobarBuilder {
     // impl_builder_setters
-    // impl_builder_setters / impl_builder_setters_named
     pub fn foo<FOO: Into<u8>>(mut self, foo: FOO) -> Self {
         self.foo = foo.into().into();
         self

@@ -3,55 +3,32 @@
 use super::*;
 
 pub struct ResultPanicGenerator {
-    pub builder: Builder,
+    builder: Builder,
 }
 
 impl ResultPanicGenerator {
-    /// Transform all field in a token serie.
-    fn with_fields<F: Fn(&Property)->TokenStream>(&self, to_token: F) -> TokenStream {
-        self.builder().properties
-            .iter()
-            .map(to_token)
-            .collect()
+    pub fn new(builder: Builder) -> Self {
+        Self {
+            builder,
+        }
     }
+}
+
+impl ResultPanicGenerator {
 
     /// Generate builder struct
     pub fn struct_builder(&self) -> TokenStream {
-        if self.builder.is_tuple {
-            self.struct_builder_tuple()
+        let vis = &self.builder.vis;
+        let fields = self.builder.group(self.properties().result_fields());
+        let builder_name = &self.builder.ident;
+        let delim = if self.builder.is_tuple {
+            quote!(;)
         } else {
-            self.struct_builder_named()
-        }
-    }
-    pub fn struct_builder_tuple(&self) -> TokenStream {
-        let fields = self.with_fields(|f| {
-            let ty = f.option.value().unwrap_or(&f.ty);
-            quote! {
-                ::core::option::Option<#ty>,
-            }
-        });
-        let builder_name = &self.builder.ident;
+            quote!()
+        };
         quote! {
             #[derive(Default)]
-            pub struct #builder_name(
-                #fields
-            );
-        }
-    }
-    pub fn struct_builder_named(&self) -> TokenStream {
-        let fields = self.with_fields(|f| {
-            let ident = &f.ident;
-            let ty = f.option.value().unwrap_or(&f.ty);
-            quote! {
-                pub #ident: ::core::option::Option<#ty>,
-            }
-        });
-        let builder_name = &self.builder.ident;
-        quote! {
-            #[derive(Default)]
-            pub struct #builder_name {
-                #fields
-            }
+            #vis struct #builder_name #fields #delim
         }
     }
 
@@ -75,18 +52,13 @@ impl ResultPanicGenerator {
 
     /// Generate fluent field setters
     pub fn impl_builder_setters(&self) -> TokenStream {
-        self.with_fields(|f| {
-            let method = if self.builder.is_tuple {
-                let method = format_ident!("set{}", f.ordinal);
-                quote!(#method)
-            } else {
-                f.id()
-            };
+        self.properties().to_token(|f| {
+            let method = f.setter();
             let typevar = f.typevar();
             let id = f.id();
-            let ty = f.option.value().unwrap_or(&f.ty);
+            let ty = f.ty_into();
             quote! {
-                pub fn #method<#typevar: Into<#ty>>(mut self, value: #typevar) -> Self {
+                pub fn #method<#typevar: ::core::convert::Into<#ty>>(mut self, value: #typevar) -> Self {
                     self.#id = value.into().into();
                     self
                 }
@@ -103,7 +75,7 @@ impl ResultPanicGenerator {
             _ => panic!("Unsupported mode {:?}", self.builder.mode),
         };
 
-        let check_fields = self.with_fields(|f| {
+        let check_fields = self.properties().to_token(|f| {
             if f.option.is_enabled() {
                 return quote!();
             }
@@ -115,34 +87,9 @@ impl ResultPanicGenerator {
                 }
             }
         });
-        let create = if self.builder.is_tuple {
-            let assign = self.with_fields(|f| {
-                let id = f.id();
-                if f.option.is_enabled() {
-                    quote!(self.#id,)
-                } else {
-                    quote!(self.#id.unwrap(),)
-                }
-            });
-            quote! {
-                #target(
-                    #assign
-                )
-            }
-        } else {
-            let assign = self.with_fields(|f| {
-                let id = f.id();
-                if f.option.is_enabled() {
-                    quote!(#id: self.#id,)
-                } else {
-                    quote!(#id: self.#id.unwrap(),)
-                }
-            });
-            quote! {
-                #target {
-                    #assign
-                }
-            }
+        let assign = self.builder.group(self.properties().result_build());
+        let create = quote! {
+            #target #assign
         };
         let success = match self.builder.mode {
             Mode::Panic => create,
