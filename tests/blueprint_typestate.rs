@@ -3,7 +3,7 @@
 // #############################################################################
 
 #[derive(PartialEq,Debug)]
-pub struct Foobar {
+struct Foobar {
     foo: u8,
     bar: String,
     option: Option<String>,
@@ -22,7 +22,7 @@ impl Foobar {
 
 // struct_builder
 #[derive(Default)]
-pub struct FoobarBuilder<FOO=(), BAR=(), OPTION=()> {
+struct FoobarBuilder<FOO=(), BAR=(), OPTION=()> {
     foo: FOO,
     bar: BAR,
     option: Option<String>,
@@ -88,6 +88,7 @@ impl<OPTION> FoobarBuilder<u8,String,OPTION> {
 }
 
 // impl_builder
+// impl_builder / impl_builder_from
 impl<OPTION> ::core::convert::From<FoobarBuilder<u8,String,OPTION,>> for Foobar {
     fn from(builder: FoobarBuilder<u8,String,OPTION,>) -> Self {
         builder.build()
@@ -114,16 +115,34 @@ fn builder_build_full() {
         built,
     );
 }
+
 #[test]
-fn builder_build_partial() {
+fn builder_build_partial_explicit() {
     let built = Foobar::builder()
         .foo(2)
         .bar("foobar")
+        .option_none()
         .build();
     assert_eq!(
         Foobar {
             foo: 2,
             bar: String::from("foobar"),
+            option: None,
+        },
+        built,
+    );
+}
+
+#[test]
+fn builder_build_implicit() {
+    let built: Foobar = Foobar::builder()
+        .foo(3)
+        .bar("builder_into")
+        .build();
+    assert_eq!(
+        Foobar {
+            foo: 3,
+            bar: String::from("builder_into"),
             option: None,
         },
         built,

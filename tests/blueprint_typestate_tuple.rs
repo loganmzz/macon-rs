@@ -101,14 +101,8 @@ impl<OPTION> FoobarBuilder<u8,String,OPTION,> {
 
 // impl_builder
 // impl_builder / impl_builder_from
-impl ::core::convert::From<FoobarBuilder<u8,String,(),>> for Foobar {
-    fn from(builder: FoobarBuilder<u8,String,()>) -> Self {
-        builder.build()
-    }
-}
-
-impl ::core::convert::From<FoobarBuilder<u8,String,Option<String>,>> for Foobar {
-    fn from(builder: FoobarBuilder<u8,String,Option<String>>) -> Self {
+impl<OPTION> ::core::convert::From<FoobarBuilder<u8,String,OPTION,>> for Foobar {
+    fn from(builder: FoobarBuilder<u8,String,OPTION,>) -> Self {
         builder.build()
     }
 }
@@ -119,7 +113,7 @@ impl ::core::convert::From<FoobarBuilder<u8,String,Option<String>,>> for Foobar 
 // #############################################################################
 
 #[test]
-fn builder_build_set_full() {
+fn builder_build_ordered_full() {
     let built = Foobar::builder()
         .set(2)
         .set("foobar")
@@ -136,7 +130,7 @@ fn builder_build_set_full() {
 }
 
 #[test]
-fn builder_build_set_partial_explicit() {
+fn builder_build_ordered_partial_explicit() {
     let built = Foobar::builder()
         .set(2)
         .set("foobar")
@@ -153,7 +147,7 @@ fn builder_build_set_partial_explicit() {
 }
 
 #[test]
-fn builder_build_set_partial_implicit() {
+fn builder_build_ordered_partial_implicit() {
     let built = Foobar::builder()
         .set(2)
         .set("foobar")
@@ -169,7 +163,7 @@ fn builder_build_set_partial_implicit() {
 }
 
 #[test]
-fn builder_build_set_n_full() {
+fn builder_build_unordered_full() {
     let built = Foobar::builder()
         .set0(2)
         .set1("foobar")
@@ -186,7 +180,7 @@ fn builder_build_set_n_full() {
 }
 
 #[test]
-fn builder_build_set_n_partial_explicit() {
+fn builder_build_unordered_partial_explicit() {
     let built = Foobar::builder()
         .set0(2)
         .set1("foobar")
@@ -203,7 +197,7 @@ fn builder_build_set_n_partial_explicit() {
 }
 
 #[test]
-fn builder_build_set_n_partial_implicit() {
+fn builder_build_unordered_partial_implicit() {
     let built = Foobar::builder()
         .set0(2)
         .set1("foobar")

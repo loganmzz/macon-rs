@@ -16,7 +16,7 @@ struct MyType {
 
 let _mytype: MyType = MyType::builder()
     .integer(42)
-    .string(String::from("foobar"))
+    .string("foobar")
     .build();
 ```
 
@@ -39,15 +39,21 @@ Settings are set using `#[builder()]` attribute.
 Change builder and associated `build()` function behavior. Supported values: [`Typestate`](#typestate-pattern-default) (_default_), [`Panic`](#panic-on-build) or [`Result`](#result-on-build).
 
 * **`Option=!`** <br/>
-Disable automatic [`Option`][Option] detection for whole struct.
+Disable automatic [`Option`][Option] detection for whole struct. See ["`Option` fields"](#option-fields).
+
+* **`Default=!`** <br/>
+Disable automatic [`Default`][Default] derive detection for struct. See ["`Default` struct"](#default-struct).
+
+* **`Default`** <br/>
+Enforce [`Default`][Default] support for struct. See ["`Default` struct"](#default-struct).
 
 #### field
 
 * **`Option=!`** <br/>
-Disable automatic [`Option`][Option] detection for given field. Generated setter will rely on declared field type.
+Disable automatic [`Option`][Option] detection for given field. Generated setter will rely on declared field type. See ["`Option` fields"](#option-fields).
 
 * **`Option=WrappedType`** <br/>
-Enforce [`Option`][Option] support for given field. Generated setter will rely on `WrappedType`.
+Enforce [`Option`][Option] support for given field. Generated setter will rely on `WrappedType`. See ["`Option` fields"](#option-fields).
 
 
 ### Features
@@ -147,7 +153,7 @@ let _mytuple: MyTuple = MyTuple::builder()
     .build();
 ```
 
-Only for `Typestate` mode, you can use `set()/none()`-calls to assign values in order:
+Only for [`Typestate` mode](#typestate-pattern-default), you can use `set()/none()`-calls to assign values in order:
 
 ```rust
 #[macro_use] extern crate macon;
@@ -288,6 +294,115 @@ let built = AliasedOptionStruct::builder()
 assert_eq!(Some(String::from("aliased value")), built.optional);
 ```
 
+#### `Default` struct
+
+Blueprints:
+* [`blueprint_typestate_tuple.rs`][blueprint_typestate_tuple.rs]
+* [`blueprint_panic_tuple.rs`][blueprint_panic_tuple.rs]
+* [`blueprint_result_tuple.rs`][blueprint_result_tuple.rs]
+
+If struct derives [`Default`][Default], all fields are then optional and values are kept from default instance:
+
+<div class="warning">
+
+Note: In order to detect [`Default`][Default] derive, `Builder` derive attribute must be placed before other derive attributes.
+
+</div>
+
+```rust
+#[macro_use] extern crate macon;
+
+#[derive(Builder,)]
+#[derive(PartialEq,Debug,)]
+#[builder(Default,)]
+struct DeriveDefaultStruct {
+  integer: usize,
+  string: String,
+  optional: Option<String>,
+}
+
+impl Default for DeriveDefaultStruct {
+    fn default() -> Self {
+        DeriveDefaultStruct {
+            integer: 42,
+            string: String::from("plop!"),
+            optional: Some(String::from("some")),
+        }
+    }
+}
+
+let built = DeriveDefaultStruct::builder()
+  .build();
+
+assert_eq!(
+  DeriveDefaultStruct {
+    integer: 42,
+    string: String::from("plop!"),
+    optional: Some(String::from("some")),
+  },
+  built,
+);
+```
+
+In case [`Default`][Default] derive detection is undesired, you can disable it with `#[builder(Default=!)]`.
+
+On the other hand, if have your own [`Default`][Default] implementation, you can add `#[builder(Default)]` to enable support.
+
+```rust
+#[macro_use] extern crate macon;
+
+#[derive(Builder,)]
+#[derive(PartialEq,Debug,)]
+#[builder(Default,)]
+struct CustomDefaultStruct {
+  integer: usize,
+  string: String,
+  optional: Option<String>,
+}
+
+impl Default for CustomDefaultStruct {
+    fn default() -> Self {
+        CustomDefaultStruct {
+            integer: 42,
+            string: String::from("plop!"),
+            optional: Some(String::from("some")),
+        }
+    }
+}
+
+let built = CustomDefaultStruct::builder()
+  .build();
+
+assert_eq!(
+  CustomDefaultStruct {
+    integer: 42,
+    string: String::from("plop!"),
+    optional: Some(String::from("some")),
+  },
+  built,
+);
+```
+
+You can keep default value (from default built instance) explicitly with `<field>_keep` (or `keep` for ordered setter):
+
+```rust
+let built = CustomDefaultStruct::builder()
+  .integer_keep()
+  .string("overriden")
+  .optional_none()
+  .build();
+
+assert_eq!(
+  CustomDefaultStruct {
+    integer: 42,
+    string: String::from("overriden"),
+    optional: None,
+  },
+  built,
+);
+```
+
+
 [Default]: https://doc.rust-lang.org/core/default/trait.Default.html
 [From]: https://doc.rust-lang.org/std/convert/trait.From.html
 [Into]: https://doc.rust-lang.org/core/convert/trait.Into.html
@@ -299,8 +414,11 @@ assert_eq!(Some(String::from("aliased value")), built.optional);
 
 [tests]: https://github.com/loganmzz/macon-rs/tree/main/tests
 [blueprint_panic.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic.rs
+[blueprint_panic_default.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_default.rs
 [blueprint_panic_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_tuple.rs
 [blueprint_result.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result.rs
+[blueprint_result_default.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_default.rs
 [blueprint_result_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_tuple.rs
 [blueprint_typestate.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate.rs
+[blueprint_typestate_default.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_default.rs
 [blueprint_typestate_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_tuple.rs
