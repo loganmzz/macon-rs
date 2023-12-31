@@ -57,11 +57,44 @@ impl ResultPanicGenerator {
             let typevar = f.typevar();
             let id = f.id();
             let ty = f.ty_into();
+            let ident = &f.ident;
+            let mut value = quote!(::core::option::Option::Some(#ident.into()));
+            if f.default.is_enabled() && f.option.is_enabled() {
+                value = quote!(::core::option::Option::Some(#value));
+            }
+            let setter_none = if f.option.is_enabled() {
+                let setter_none = f.setter_none();
+                let mut value_none = quote!(::core::option::Option::None);
+                if f.default.is_enabled() && f.option.is_enabled() {
+                    value_none = quote!(::core::option::Option::Some(#value_none));
+                }
+                quote! {
+                    pub fn #setter_none(mut self) -> Self {
+                        self.#id = #value_none;
+                        self
+                    }
+                }
+            } else {
+                quote!()
+            };
+            let setter_keep = if f.default.is_enabled() {
+                let setter_keep = f.setter_keep();
+                quote! {
+                    pub fn #setter_keep(mut self) -> Self {
+                        self.#id = ::core::option::Option::None;
+                        self
+                    }
+                }
+            } else {
+                quote!()
+            };
             quote! {
-                pub fn #method<#typevar: ::core::convert::Into<#ty>>(mut self, value: #typevar) -> Self {
-                    self.#id = value.into().into();
+                pub fn #method<#typevar: ::core::convert::Into<#ty>>(mut self, #ident: #typevar) -> Self {
+                    self.#id = #value;
                     self
                 }
+                #setter_none
+                #setter_keep
             }
         })
     }
@@ -71,10 +104,37 @@ impl ResultPanicGenerator {
         let target = &self.builder.target;
         let output = match self.builder.mode {
             Mode::Panic => quote!(#target),
-            Mode::Result => quote!(Result<#target, String>),
+            Mode::Result => quote!(::core::result::Result<#target, ::std::string::String>),
             _ => panic!("Unsupported mode {:?}", self.builder.mode),
         };
+        let content = if self.builder.default.is_enabled() {
+            self.impl_builder_build_from_default()
+        } else {
+            self.impl_builder_build_from_scratch()
+        };
+        quote! {
+            pub fn build(self) -> #output {
+                #content
+            }
+        }
+    }
 
+    pub fn impl_builder_build_from_default(&self) -> TokenStream {
+        let target = &self.builder.target;
+        let overrides = self.properties().typestate_build_overrides();
+        let mut result = quote!(built);
+        if self.builder.mode == Mode::Result {
+            result = quote!(::core::result::Result::Ok(#result))
+        }
+        quote! {
+            let mut built = <#target as ::core::default::Default>::default();
+            #overrides
+            #result
+        }
+    }
+
+    pub fn impl_builder_build_from_scratch(&self) -> TokenStream {
+        let target = &self.builder.target;
         let check_fields = self.properties().to_token(|f| {
             if f.option.is_enabled() {
                 return quote!();
@@ -102,16 +162,14 @@ impl ResultPanicGenerator {
             _ => panic!("Unsupported mode {:?}", self.builder.mode),
         };
         quote! {
-            pub fn build(self) -> #output {
-                let mut errors: Vec<String> = vec![];
+            let mut errors: ::std::vec::Vec<::std::string::String> = ::std::vec![];
 
-                #check_fields
+            #check_fields
 
-                if !errors.is_empty() {
-                    #error
-                } else {
-                    #success
-                }
+            if !errors.is_empty() {
+                #error
+            } else {
+                #success
             }
         }
     }
@@ -122,7 +180,7 @@ impl ResultPanicGenerator {
         match self.builder.mode {
             Mode::Panic =>
                 quote! {
-                    impl From<#builder_name> for #target {
+                    impl ::core::convert::From<#builder_name> for #target {
                         fn from(builder: #builder_name) -> Self {
                             builder.build()
                         }
@@ -130,9 +188,9 @@ impl ResultPanicGenerator {
                 },
             Mode::Result =>
                 quote! {
-                    impl TryFrom<#builder_name> for #target {
-                        type Error = String;
-                        fn try_from(builder: #builder_name) -> Result<Self, Self::Error> {
+                    impl ::core::convert::TryFrom<#builder_name> for #target {
+                        type Error = ::std::string::String;
+                        fn try_from(builder: #builder_name) -> ::core::result::Result<Self, Self::Error> {
                             builder.build()
                         }
                     }

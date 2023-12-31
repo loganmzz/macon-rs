@@ -12,6 +12,7 @@ Source: https://keepachangelog.com/
 - Tuple support
 - Setters are generic over [`Into`](https://doc.rust-lang.org/core/convert/trait.Into.html)
 - Builders implement [`Into`](https://doc.rust-lang.org/core/convert/trait.Into.html)
+- [`Default`](https://doc.rust-lang.org/core/default/trait.Default.html) support for struct
 
 ### Changed
 

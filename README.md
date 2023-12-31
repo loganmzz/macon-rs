@@ -19,6 +19,7 @@ Idea for creating a new builder generator comes from benchmarking solutions at: 
 struct MyType {
   integer: i32,
   string: String,
+  optional: Option<String>,
 }
 
 let _mytype: MyType = MyType::builder()
@@ -30,6 +31,7 @@ let _mytype: MyType = MyType::builder()
 struct MyTuple(
   i32,
   String,
+  Option<String>,
 );
 
 let _mytuple: MyTuple = MyTuple::builder()

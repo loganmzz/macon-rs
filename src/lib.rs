@@ -16,7 +16,7 @@
 //!
 //! let _mytype: MyType = MyType::builder()
 //!     .integer(42)
-//!     .string(String::from("foobar"))
+//!     .string("foobar")
 //!     .build();
 //! ```
 //!
@@ -39,15 +39,21 @@
 //! Change builder and associated `build()` function behavior. Supported values: [`Typestate`](#typestate-pattern-default) (_default_), [`Panic`](#panic-on-build) or [`Result`](#result-on-build).
 //!
 //! * **`Option=!`** <br/>
-//! Disable automatic [`Option`] detection for whole struct.
+//! Disable automatic [`Option`] detection for whole struct. See ["`Option` fields"](#option-fields).
+//!
+//! * **`Default=!`** <br/>
+//! Disable automatic [`Default`] derive detection for struct. See ["`Default` struct"](#default-struct).
+//!
+//! * **`Default`** <br/>
+//! Enforce [`Default`] support for struct. See ["`Default` struct"](#default-struct).
 //!
 //! #### field
 //!
 //! * **`Option=!`** <br/>
-//! Disable automatic [`Option`] detection for given field. Generated setter will rely on declared field type.
+//! Disable automatic [`Option`] detection for given field. Generated setter will rely on declared field type. See ["`Option` fields"](#option-fields).
 //!
 //! * **`Option=WrappedType`** <br/>
-//! Enforce [`Option`] support for given field. Generated setter will rely on `WrappedType`.
+//! Enforce [`Option`] support for given field. Generated setter will rely on `WrappedType`. See ["`Option` fields"](#option-fields).
 //!
 //! ### Features
 //!
@@ -278,12 +284,130 @@
 //! assert_eq!(Some(String::from("aliased value")), built.optional);
 //! ```
 //!
+//! #### `Default` struct
+//!
+//! Blueprints:
+//! * [`blueprint_typestate_tuple.rs`][blueprint_typestate_tuple.rs]
+//! * [`blueprint_panic_tuple.rs`][blueprint_panic_tuple.rs]
+//! * [`blueprint_result_tuple.rs`][blueprint_result_tuple.rs]
+//!
+//! If struct derives [`Default`], all fields are then optional and values are kept from default instance:
+//!
+//! <div class="warning">
+//!
+//! Note: In order to detect [`Default`] derive, `Builder` derive attribute must be placed before other derive attributes.
+//!
+//! </div>
+//!
+//! ```
+//! # #[macro_use] extern crate macon;
+//! #[derive(Builder,)]
+//! #[derive(Default,PartialEq,Debug,)]
+//! struct DeriveDefaultStruct {
+//!   integer: usize,
+//!   string: String,
+//!   optional: Option<String>,
+//! }
+//!
+//! let built = DeriveDefaultStruct::builder()
+//!   .build();
+//!
+//! assert_eq!(
+//!   DeriveDefaultStruct {
+//!     integer: 0,
+//!     string: String::from(""),
+//!     optional: None,
+//!   },
+//!   built,
+//! );
+//! ```
+//!
+//! In case [`Default`] derive detection is undesired, you can disable it with `#[builder(Default=!)]`.
+//!
+//! On the other hand, if have your own [`Default`] implementation, you can add `#[builder(Default)]` to enable support.
+//!
+//! ```
+//! # #[macro_use] extern crate macon;
+//! #[derive(Builder,)]
+//! #[derive(PartialEq,Debug,)]
+//! #[builder(Default,)]
+//! struct CustomDefaultStruct {
+//!   integer: usize,
+//!   string: String,
+//!   optional: Option<String>,
+//! }
+//!
+//! impl Default for CustomDefaultStruct {
+//!     fn default() -> Self {
+//!         CustomDefaultStruct {
+//!             integer: 42,
+//!             string: String::from("plop!"),
+//!             optional: Some(String::from("some")),
+//!         }
+//!     }
+//! }
+//!
+//! let built = CustomDefaultStruct::builder()
+//!   .build();
+//!
+//! assert_eq!(
+//!   CustomDefaultStruct {
+//!     integer: 42,
+//!     string: String::from("plop!"),
+//!     optional: Some(String::from("some")),
+//!   },
+//!   built,
+//! );
+//! ```
+//!
+//! You can keep default value (from default built instance) explicitly with `<field>_keep` (or `keep` for ordered setter):
+//!
+//! ```
+//! # #[macro_use] extern crate macon;
+//! # #[derive(Builder,)]
+//! # #[derive(PartialEq,Debug,)]
+//! # #[builder(Default,)]
+//! # struct CustomDefaultStruct {
+//! #  integer: usize,
+//! #  string: String,
+//! #  optional: Option<String>,
+//! # }
+//! #
+//! # impl Default for CustomDefaultStruct {
+//! #     fn default() -> Self {
+//! #         CustomDefaultStruct {
+//! #             integer: 42,
+//! #             string: String::from("plop!"),
+//! #             optional: Some(String::from("some")),
+//! #         }
+//! #     }
+//! # }
+//! let built = CustomDefaultStruct::builder()
+//!   .integer_keep()
+//!   .string("overriden")
+//!   .optional_none()
+//!   .build();
+//!
+//! assert_eq!(
+//!   CustomDefaultStruct {
+//!     integer: 42,
+//!     string: String::from("overriden"),
+//!     optional: None,
+//!   },
+//!   built,
+//! );
+//! ```
+//!
+//!
 //! [tests]: https://github.com/loganmzz/macon-rs/tree/main/tests
 //! [blueprint_panic.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic.rs
+//! [blueprint_panic_default.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_default.rs
 //! [blueprint_panic_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_tuple.rs
 //! [blueprint_result.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result.rs
+//! [blueprint_result_default.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_default.rs
 //! [blueprint_result_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_tuple.rs
 //! [blueprint_typestate.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate.rs
+//! [blueprint_typestate_default.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_default.rs
 //! [blueprint_typestate_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_tuple.rs
 //!
 

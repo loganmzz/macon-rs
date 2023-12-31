@@ -23,7 +23,7 @@ pub struct FoobarBuilder {
 // impl_target
 impl Foobar {
     pub fn builder() -> FoobarBuilder {
-        Default::default()
+        <FoobarBuilder as ::core::default::Default>::default()
     }
 }
 
@@ -31,23 +31,28 @@ impl Foobar {
 impl FoobarBuilder {
     // impl_builder_setters
     pub fn foo<FOO: Into<u8>>(mut self, foo: FOO) -> Self {
-        self.foo = foo.into().into();
+        self.foo = ::core::option::Option::Some(foo.into());
         self
     }
 
     pub fn bar<BAR: Into<String>>(mut self, bar: BAR) -> Self {
-        self.bar = bar.into().into();
+        self.bar = ::core::option::Option::Some(bar.into());
         self
     }
 
     pub fn option<OPTION: Into<String>>(mut self, option: OPTION) -> Self {
-        self.option = option.into().into();
+        self.option = ::core::option::Option::Some(option.into());
+        self
+    }
+
+    pub fn option_none(mut self) -> Self {
+        self.option = ::core::option::Option::None;
         self
     }
 
     // impl_builder_build
-    pub fn build(self) -> Result<Foobar, String> {
-        let mut errors: Vec<String> = vec![];
+    pub fn build(self) -> ::core::result::Result<Foobar, ::std::string::String> {
+        let mut errors: ::std::vec::Vec<::std::string::String> = ::std::vec![];
 
         if self.foo.is_none() {
             errors.push("Field foo is missing".into());
@@ -70,10 +75,10 @@ impl FoobarBuilder {
 
 // impl_builder
 // impl_builder / impl_builder_from
-impl TryFrom<FoobarBuilder> for Foobar {
-    type Error = String;
+impl ::core::convert::TryFrom<FoobarBuilder> for Foobar {
+    type Error = ::std::string::String;
 
-    fn try_from(builder: FoobarBuilder) -> Result<Self, Self::Error> {
+    fn try_from(builder: FoobarBuilder) -> ::core::result::Result<Self, Self::Error> {
         builder.build()
     }
 }
@@ -84,7 +89,7 @@ impl TryFrom<FoobarBuilder> for Foobar {
 // #############################################################################
 
 #[test]
-fn builder_build_full_ok() {
+fn builder_build_full() {
     let builder = Foobar::builder()
         .foo(2);
     let built = builder
@@ -102,16 +107,34 @@ fn builder_build_full_ok() {
 }
 
 #[test]
-fn builder_build_partial_ok() {
+fn builder_build_partial_explicit() {
     let builder = Foobar::builder()
-        .foo(2);
+        .foo(2)
+        .bar("foobar");
     let built = builder
-        .bar("foobar")
+        .option_none()
         .build();
     assert_eq!(
         Ok(Foobar {
             foo: 2,
             bar: String::from("foobar"),
+            option: None,
+        }),
+        built,
+    );
+}
+
+#[test]
+fn builder_build_implicit() {
+    let builder = Foobar::builder()
+        .foo(3);
+    let built = builder
+        .bar("builder_into")
+        .build();
+    assert_eq!(
+        Ok(Foobar {
+            foo: 3,
+            bar: String::from("builder_into"),
             option: None,
         }),
         built,
@@ -130,7 +153,7 @@ fn builder_build_missing_foo() {
 }
 
 #[test]
-fn builder_into() {
+fn builder_into_full() {
     let built: Foobar = Foobar::builder()
         .foo(3)
         .bar("builder_into")
@@ -142,6 +165,23 @@ fn builder_into() {
             foo: 3,
             bar: String::from("builder_into"),
             option: Some(String::from("optional")),
+        },
+        built,
+    );
+}
+
+#[test]
+fn builder_into_partial() {
+    let built: Foobar = Foobar::builder()
+        .foo(3)
+        .bar("builder_into")
+        .try_into()
+        .unwrap();
+    assert_eq!(
+        Foobar {
+            foo: 3,
+            bar: String::from("builder_into"),
+            option: None,
         },
         built,
     );
