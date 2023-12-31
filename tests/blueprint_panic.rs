@@ -3,7 +3,7 @@
 // #############################################################################
 
 #[derive(PartialEq,Debug)]
-pub struct Foobar {
+struct Foobar {
     foo: u8,
     bar: String,
     option: Option<String>,
@@ -15,7 +15,7 @@ pub struct Foobar {
 
 // struct_builder
 #[derive(Default)]
-pub struct FoobarBuilder {
+struct FoobarBuilder {
     foo: ::core::option::Option<u8>,
     bar: ::core::option::Option<String>,
     option: ::core::option::Option<String>,
@@ -33,23 +33,28 @@ impl Foobar {
 impl FoobarBuilder {
     // impl_builder_setters
     pub fn foo<FOO: ::core::convert::Into<u8>>(mut self, foo: FOO) -> Self {
-        self.foo = foo.into().into();
+        self.foo = ::core::option::Option::Some(foo.into());
         self
     }
 
     pub fn bar<BAR: ::core::convert::Into<String>>(mut self, bar: BAR) -> Self {
-        self.bar = bar.into().into();
+        self.bar = ::core::option::Option::Some(bar.into());
         self
     }
 
     pub fn option<OPTION: ::core::convert::Into<String>>(mut self, option: OPTION) -> Self {
-        self.option = option.into().into();
+        self.option = ::core::option::Option::Some(option.into());
+        self
+    }
+
+    pub fn option_none(mut self) -> Self {
+        self.option = ::core::option::Option::None;
         self
     }
 
     // impl_builder_build
     pub fn build(self) -> Foobar {
-        let mut errors: ::std::vec::Vec<String> = vec![];
+        let mut errors: ::std::vec::Vec<::std::string::String> = ::std::vec![];
 
         if self.foo.is_none() {
             errors.push("Field foo is missing".into());
@@ -101,11 +106,11 @@ fn builder_build_full() {
 }
 
 #[test]
-fn builder_build_partial() {
-    let builder = Foobar::builder()
-        .foo(2);
-    let built = builder
+fn builder_build_partial_explicit() {
+    let built = Foobar::builder()
+        .foo(2)
         .bar("foobar")
+        .option_none()
         .build();
     assert_eq!(
         Foobar {
@@ -118,7 +123,23 @@ fn builder_build_partial() {
 }
 
 #[test]
-fn builder_into() {
+fn builder_build_implicit() {
+    let built: Foobar = Foobar::builder()
+        .foo(3)
+        .bar("builder_into")
+        .build();
+    assert_eq!(
+        Foobar {
+            foo: 3,
+            bar: String::from("builder_into"),
+            option: None,
+        },
+        built,
+    );
+}
+
+#[test]
+fn builder_into_full() {
     let built: Foobar = Foobar::builder()
         .foo(3)
         .bar("builder_into")
@@ -129,6 +150,22 @@ fn builder_into() {
             foo: 3,
             bar: String::from("builder_into"),
             option: Some(String::from("optional")),
+        },
+        built,
+    );
+}
+
+#[test]
+fn builder_into_partial() {
+    let built: Foobar = Foobar::builder()
+        .foo(3)
+        .bar("builder_into")
+        .into();
+    assert_eq!(
+        Foobar {
+            foo: 3,
+            bar: String::from("builder_into"),
+            option: None,
         },
         built,
     );

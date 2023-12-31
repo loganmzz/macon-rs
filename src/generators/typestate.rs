@@ -101,7 +101,7 @@ impl StateGenerator {
         let typevar = field.typevar();
         let struct_state_from = self.properties().typestate_state(field, false, false);
         let struct_state_to = self.properties().typestate_state(field, false, true);
-        let values = self.properties().assign(field, false);
+        let values = self.properties().assign(field, false, false);
         let marker_field = if self.builder.is_tuple {
             quote!(::core::default::Default::default(),)
         } else {
@@ -113,14 +113,29 @@ impl StateGenerator {
         });
         let setter_none = if field.option.is_enabled() {
             let setter_none = field.setter_none();
-            let values = self.properties().assign(field, true);
-            let all_values = self.builder.group(quote! {
-                #values
+            let assign_none = self.properties().assign(field, true, false);
+            let assign_none_all = self.builder.group(quote! {
+                #assign_none
                 #marker_field
             });
             quote! {
                 pub fn #setter_none(self) -> #builder_name<#struct_state_to> {
-                    #builder_name #all_values
+                    #builder_name #assign_none_all
+                }
+            }
+        } else {
+            quote!()
+        };
+        let setter_keep = if field.default.is_enabled() {
+            let setter_keep = field.setter_keep();
+            let assign_keep = self.properties().assign(field, false, true);
+            let assign_keep_all = self.builder.group(quote! {
+                #assign_keep
+                #marker_field
+            });
+            quote! {
+                pub fn #setter_keep(self) -> #builder_name<#struct_state_to> {
+                    #builder_name #assign_keep_all
                 }
             }
         } else {
@@ -132,6 +147,7 @@ impl StateGenerator {
                     #builder_name #all_values
                 }
                 #setter_none
+                #setter_keep
             }
         };
         if self.builder.is_tuple {
@@ -147,6 +163,16 @@ impl StateGenerator {
             } else {
                 quote!()
             };
+            let setter_keep_ordered = if field.default.is_enabled() {
+                let setter_keep = field.setter_keep();
+                quote! {
+                    pub fn keep(self) -> #builder_name<#struct_state_to_ordered> {
+                        self.#setter_keep()
+                    }
+                }
+            } else {
+                quote!()
+            };
             impl_setter = quote! {
                 #impl_setter
 
@@ -155,6 +181,7 @@ impl StateGenerator {
                         self.#setter(#ident)
                     }
                     #setter_none_ordered
+                    #setter_keep_ordered
                 }
             }
         }
@@ -162,41 +189,47 @@ impl StateGenerator {
     }
 
     pub fn impl_builder_build(&self) -> TokenStream {
-        let builder_name = &self.builder.ident;
-        let target = &self.builder.target;
-        let final_state = self.properties().typestate_state_final();
-        let assign = self.builder.group(self.properties().typestate_build());
         let option_typevars = self.properties().typestate_optional_marker();
+        let builder_name = &self.builder.ident;
+        let final_state = self.properties().typestate_state_final();
+        let target = &self.builder.target;
+        let content = if self.builder.default.is_enabled() {
+            self.impl_builder_build_from_default()
+        } else {
+            self.impl_builder_build_from_scratch()
+        };
         quote! {
             impl<#option_typevars> #builder_name<#final_state> {
                 pub fn build(self) -> #target {
-                    #target #assign
+                    #content
                 }
             }
+        }
+    }
+
+    pub fn impl_builder_build_from_default(&self) -> TokenStream {
+        let target = &self.builder.target;
+        let overrides = self.properties().typestate_build_overrides();
+        quote! {
+            let mut built = <#target as ::core::default::Default>::default();
+            #overrides
+            built
+        }
+    }
+
+    pub fn impl_builder_build_from_scratch(&self) -> TokenStream {
+        let target = &self.builder.target;
+        let assign = self.builder.group(self.properties().typestate_build());
+        quote! {
+            #target #assign
         }
     }
 
     pub fn impl_builder_from(&self) -> TokenStream {
         let builder_name = &self.builder.ident;
         let target = &self.builder.target;
-        let final_state = self.properties().to_token(|f| {
-            if f.option.is_enabled() {
-                let typevar = f.typevar();
-                quote!(#typevar,)
-            } else {
-                let ty = &f.ty;
-                quote!(#ty,)
-            }
-        });
-        let option_typevars: TokenStream = self.builder
-            .properties
-            .iter()
-            .filter(|f| f.option.is_enabled())
-            .map(|f| {
-                let typevar = f.typevar();
-                quote!(#typevar,)
-            })
-            .collect();
+        let final_state = self.properties().typestate_state_final();
+        let option_typevars: TokenStream = self.properties().typestate_optional_marker();
         quote! {
             impl<#option_typevars> ::core::convert::From<#builder_name<#final_state>> for #target {
                 fn from(builder: #builder_name<#final_state>) -> Self {

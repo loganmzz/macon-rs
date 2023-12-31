@@ -24,6 +24,7 @@ use syn::{
     MetaList,
     PathArguments,
     Result,
+    Token,
     Type,
     Visibility,
 };
@@ -37,6 +38,7 @@ pub struct Builder {
     pub properties: Properties,
     pub is_tuple: bool,
     pub option: bool,
+    pub default: Setting<()>,
 }
 
 #[derive(Debug,PartialEq)]
@@ -51,6 +53,26 @@ pub enum Setting<T> {
     Undefined,
     Disabled,
     Enabled(T),
+}
+
+impl<T: PartialEq> PartialEq for Setting<T> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Undefined, Self::Undefined) => true,
+            (Self::Disabled, Self::Disabled) => true,
+            (Self::Enabled(self_value), Self::Enabled(other_value)) => self_value == other_value,
+            _ => false,
+        }
+    }
+}
+impl<T: Clone> Clone for Setting<T> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Undefined => Self::Undefined,
+            Self::Disabled => Self::Disabled,
+            Self::Enabled(value) => Self::Enabled(value.clone()),
+        }
+    }
 }
 
 impl<T> Setting<T> {
@@ -136,6 +158,7 @@ pub struct Property {
     pub ty: Type,
     pub is_tuple: bool,
     pub option: Setting<Type>,
+    pub default: Setting<()>,
 }
 
 impl Default for Mode {
@@ -154,6 +177,32 @@ impl Default for Builder {
             properties: Default::default(),
             is_tuple: false,
             option: true,
+            default: Default::default(),
+        }
+    }
+}
+
+trait ResultErrorContext {
+    fn map_err_context<C: ::core::fmt::Display>(self, context: C) -> Self;
+}
+impl<T> ResultErrorContext for Result<T> {
+    fn map_err_context<C: ::core::fmt::Display>(self, context: C) -> Self {
+        if let Err(err) = self {
+            let mut newerr: Option<Error> = None;
+            for e in err {
+                let contextualized = Error::new(
+                    e.span(),
+                    format!("{}: {}", context, e),
+                );
+                if let Some(ref mut error) = newerr {
+                    error.extend(vec![contextualized]);
+                } else {
+                    newerr = Some(contextualized);
+                }
+            }
+            Err(newerr.unwrap())
+        } else {
+            self
         }
     }
 }
@@ -174,16 +223,33 @@ impl Builder {
     pub fn with_attribute(&mut self, attr: Attribute) -> Result<()> {
         if let Meta::List(meta_list) = attr.meta {
             if meta_list.path.is_ident("builder") {
-                self.with_metalist(meta_list)?;
+                self.with_builder_attribute(meta_list)?;
+            } else if meta_list.path.is_ident("derive") {
+                self.with_derive_attribute(meta_list)?;
             }
         }
         Ok(())
     }
 
-    pub fn with_metalist(&mut self, meta_list: MetaList) -> Result<()> {
+    pub fn with_derive_attribute(&mut self, meta_list: MetaList) -> Result<()> {
+        meta_list.parse_nested_meta(|nested| {
+            if nested.path.is_ident("Default") {
+                if ! self.default.is_defined() {
+                    self.default = Setting::enable(());
+                }
+            }
+            Ok(())
+        })
+    }
+
+    pub fn with_builder_attribute(&mut self, meta_list: MetaList) -> Result<()> {
         meta_list.parse_nested_meta(|nested| {
             if nested.path.is_ident("mode") {
-                let value: Ident = nested.value()?.parse()?;
+                let value: Ident = nested
+                    .value()
+                    .map_err_context("Unable to parse mode value for struct builder attribute")?
+                    .parse()
+                    .map_err_context("Unable to parse into Ident mode value for struct builder attribute")?;
                 if value == "Typestate" {
                     self.mode = Mode::Typestate;
                 } else if value == "Result" {
@@ -191,21 +257,45 @@ impl Builder {
                 } else if value == "Panic" {
                     self.mode = Mode::Panic;
                 } else {
-                    return Err(nested.error(format!("Unsupported value {} for mode", value)));
+                    return Err(nested.error(format!("Unsupported mode value {} for struct builder attribute", value)));
                 }
                 Ok(())
             } else if nested.path.is_ident("Option") {
-                let value: Type = nested.value()?.parse()?;
+                let value: Type = nested
+                    .value()
+                    .map_err_context("Unable to parse Option value for struct builder attribute")?
+                    .parse()
+                    .map_err_context("Unable to parse into Option value for struct builder attribute")?;
                 if let Type::Never(_) = value {
                     self.option = false;
                     Ok(())
                 } else {
-                    Err(nested.error(format!("Unsupported Option value for struct: {:?}", value)))
+                    Err(nested.error(format!("Unsupported Option value {:?} for struct builder attribute", value)))
+                }
+            } else if nested.path.is_ident("Default") {
+                if nested.input.is_empty() || nested.input.peek(Token![,]) {
+                    self.default = Setting::enable(());
+                    Ok(())
+                } else if nested.input.peek(Token![=]) {
+                    let value: Type = nested
+                        .value()
+                        .map_err_context("Unable to parse Default value for struct builder attribute")?
+                        .parse()
+                        .map_err_context("Unable to parse Default value into Type for struct builder attribute")?;
+                    if let Type::Never(_) = value {
+                        self.default = Setting::disable();
+                        Ok(())
+                    } else {
+                        Err(nested.error(format!("Unsupported Default value {:?} for struct builder attribute", value)))
+                    }
+                } else {
+                    Err(nested.error(format!("Unsupported Default format {:?} for struct builder attribute", nested.input)))
                 }
             } else {
-                Err(nested.error(format!("Unsupported builder option: {:?}", nested.path)))
+                Err(nested.error(format!("Unsupported struct builder attribute option: {:?}", nested.path)))
             }
         })
+        .map_err_context("Unable to read struct builder attribute")
     }
 
     pub fn with_data(&mut self, data: Data) -> Result<()> {
@@ -324,6 +414,7 @@ impl Property {
             ty: field.ty,
             is_tuple,
             option: settings.option,
+            default: builder.default.clone(),
         })
     }
 
@@ -378,6 +469,10 @@ impl Property {
         format_ident!("{}_none", self.setter())
     }
 
+    pub fn setter_keep(&self) -> Ident {
+        format_ident!("{}_keep", self.setter())
+    }
+
     pub fn prefix(&self) -> TokenStream {
         if self.is_tuple {
             quote!()
@@ -387,24 +482,42 @@ impl Property {
         }
     }
 
-    pub fn assign(&self, target: &Property, is_none: bool) -> TokenStream {
+    pub fn assign(&self, target: &Property, is_none: bool, is_default: bool) -> TokenStream {
         let prefix = self.prefix();
         let value = if self.name == target.name {
-            if is_none {
+            if is_default {
                 quote!(::core::option::Option::None)
             } else {
-                let ident = &self.ident;
-                if self.option.is_enabled() {
-                    quote!(#ident.into().into())
+                let mut value = if is_none {
+                    quote!(::core::option::Option::None)
                 } else {
-                    quote!(#ident.into())
+                    let ident = &self.ident;
+                    if self.option.is_enabled() {
+                        quote!(::core::option::Option::Some(#ident.into()))
+                    } else {
+                        quote!(#ident.into())
+                    }
+                };
+                if self.default.is_enabled() {
+                    value = quote!(::core::option::Option::Some(#value));
                 }
+                value
             }
         } else {
             let id = self.id();
             quote!(self.#id)
         };
         quote!(#prefix #value,)
+    }
+
+    pub fn build_overrides(&self) -> TokenStream {
+        let ident = &self.ident;
+        let id = self.id();
+        quote! {
+            if let ::core::option::Option::Some(#ident) = self.#id {
+                built.#id = #ident;
+            }
+        }
     }
 
     pub fn typestate(&self, is_var: Option<bool>) -> TokenStream {
@@ -423,17 +536,19 @@ impl Property {
 
     pub fn typestate_init(&self) -> TokenStream {
         let prefix = self.prefix();
-        if self.option.is_enabled() {
-            let ty = &self.ty;
-            quote!(#prefix #ty,)
+        let mut ty = if self.option.is_enabled() || self.default.is_enabled() {
+            self.ty.to_token_stream()
         } else {
-            let typevar = self.typevar();
-            quote!(#prefix #typevar,)
+            self.typevar().to_token_stream()
+        };
+        if self.default.is_enabled() {
+            ty = quote!(::core::option::Option<#ty>);
         }
+        quote!(#prefix #ty,)
     }
 
     pub fn typestate_optional_marker(&self) -> TokenStream {
-        if self.option.is_enabled() {
+        if self.option.is_enabled() || self.default.is_enabled() {
             let typevar = self.typevar();
             quote!(#typevar,)
         } else {
@@ -466,7 +581,7 @@ impl Property {
     }
 
     pub fn typestate_state_final(&self) -> TokenStream {
-        if self.option.is_enabled() {
+        if self.option.is_enabled() || self.default.is_enabled() {
             self.typestate(Some(true))
         } else {
             self.typestate(Some(false))
@@ -489,7 +604,11 @@ impl Property {
 
     pub fn result_field(&self) -> TokenStream {
         let prefix = self.prefix();
-        let ty = self.ty_into();
+        let ty = if self.default.is_enabled() {
+            &self.ty
+        } else {
+            self.ty_into()
+        };
         quote!(#prefix ::core::option::Option<#ty>,)
     }
 
@@ -536,6 +655,10 @@ impl Properties {
         self.to_token(|p| p.typestate_build())
     }
 
+    pub fn typestate_build_overrides(&self) -> TokenStream {
+        self.to_token(|p| p.build_overrides())
+    }
+
     pub fn result_fields(&self) -> TokenStream {
         self.to_token(|p| p.result_field())
     }
@@ -544,8 +667,8 @@ impl Properties {
         self.to_token(|p| p.result_build())
     }
 
-    pub fn assign(&self, target: &Property, is_none: bool) -> TokenStream {
-        self.to_token(|p| p.assign(target, is_none))
+    pub fn assign(&self, target: &Property, is_none: bool, is_default: bool) -> TokenStream {
+        self.to_token(|p| p.assign(target, is_none, is_default))
     }
 }
 
@@ -560,8 +683,13 @@ pub mod tests {
 
     use super::*;
 
+    fn newbuilder(derive: DeriveInput) -> Builder {
+        eprintln!("{:#?}", derive);
+        Builder::from_input(derive).expect("Buider::from_input")
+    }
+
     #[test]
-    pub fn builder_attribute_mode_panic() {
+    fn builder_attribute_mode_panic() {
         let mut builder = Builder::default();
         let attribute: Attribute = parse_quote! {
             #[builder(mode=Panic)]
@@ -574,7 +702,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn builder_attribute_mode_default() {
+    fn builder_attribute_mode_default() {
         let mut builder = Builder::default();
         let attribute: Attribute = parse_quote! {
             #[builder]
@@ -587,7 +715,7 @@ pub mod tests {
     }
 
     #[test]
-    pub fn builder_attribute_mode_unknown() {
+    fn builder_attribute_mode_unknown() {
         let mut builder = Builder::default();
         let attribute: Attribute = parse_quote! {
             #[builder(mode=Unknown)]
@@ -595,20 +723,19 @@ pub mod tests {
         let actual = builder.with_attribute(attribute).map_err(|e| e.to_string());
         assert_eq!(
             actual,
-            std::result::Result::Err("Unsupported value Unknown for mode".to_owned()),
+            std::result::Result::Err("Unable to read struct builder attribute: Unsupported mode value Unknown for struct builder attribute".to_owned()),
         );
     }
 
     #[test]
-    pub fn builder_derive_properties() {
-        let derive: DeriveInput = parse_quote! {
+    fn builder_derive_properties() {
+        let builder = newbuilder(parse_quote! {
             #[derive(Builder)]
             struct Foobar {
                 foo: i32,
                 bar: String,
             }
-        };
-        let builder = Builder::from_input(derive).unwrap();
+        });
         let actual: Vec<_> = builder.properties.iter().map(|p| &p.name).collect();
         let expected = vec![
                 "foo",
@@ -621,14 +748,13 @@ pub mod tests {
     }
 
     #[test]
-    pub fn builder_derive_option() {
-        let derive: DeriveInput = parse_quote! {
+    fn builder_derive_option() {
+        let builder = newbuilder(parse_quote! {
             #[derive(Builder)]
             struct WithOption {
                 optional: Option<String>,
             }
-        };
-        let builder = Builder::from_input(derive).unwrap();
+        });
         assert_eq!(builder.ident, format_ident!("WithOptionBuilder"), "builder.ident");
         assert_eq!(builder.target, format_ident!("WithOption"), "builder.target");
 
@@ -644,16 +770,15 @@ pub mod tests {
     }
 
     #[test]
-    pub fn builder_derive_option_disable_at_struct() {
-        let derive: DeriveInput = parse_quote! {
+    fn builder_derive_option_disable_at_struct() {
+        let builder = newbuilder(parse_quote! {
             #[derive(Builder)]
-            #[builder(Option=!)]
+            #[builder(Option=!,)]
             struct DisabledOptionAtStruct {
                 optional0: Option<String>,
                 optional1: Option<String>,
             }
-        };
-        let builder = Builder::from_input(derive).unwrap();
+        });
         assert_eq!(builder.ident, format_ident!("DisabledOptionAtStructBuilder"), "builder.ident");
         assert_eq!(builder.target, format_ident!("DisabledOptionAtStruct"), "builder.target");
 
@@ -673,7 +798,49 @@ pub mod tests {
     }
 
     #[test]
-    pub fn property_read_path() {
+    fn builder_derive_default_unspecified() {
+        let builder = newbuilder(parse_quote! {
+            #[derive(Builder,)]
+            struct Demo;
+        });
+
+        assert_eq!(builder.default, Setting::undefine(), "builder.default");
+    }
+
+    #[test]
+    fn builder_derive_default_derive() {
+        let builder = newbuilder(parse_quote! {
+            #[derive(Builder,Default,)]
+            struct Demo;
+        });
+
+        assert_eq!(builder.default, Setting::enable(()), "builder.default");
+    }
+
+    #[test]
+    fn builder_derive_default_option() {
+        let builder = newbuilder(parse_quote! {
+            #[derive(Builder,)]
+            #[builder(Default,)]
+            struct Demo;
+        });
+
+        assert_eq!(builder.default, Setting::enable(()), "builder.default")
+    }
+
+    #[test]
+    fn builder_derive_default_disabled() {
+        let builder = newbuilder(parse_quote! {
+            #[derive(Builder,Default,)]
+            #[builder(Default=!,)]
+            struct Demo;
+        });
+
+        assert_eq!(builder.default, Setting::disable(), "builder.default")
+    }
+
+    #[test]
+    fn property_read_path() {
         let type_ = parse_quote!(MyStruct);
         let (path, args) = Property::read_path(&type_);
         assert_eq!(&path, "MyStruct");
