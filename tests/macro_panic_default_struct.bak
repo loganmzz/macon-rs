@@ -1,16 +1,17 @@
-use macon::Builder;
+use macon:Builder;
 
 // #############################################################################
 // ################################### INPUT ###################################
 // #############################################################################
+use std::path::PathBuf;
 
 #[derive(Builder)]
-#[builder(mode=Result)]
+#[builder(mode=Panic)]
 #[derive(PartialEq,Debug,Default)]
 struct StructUnit;
 
 #[derive(Builder)]
-#[builder(mode=Result)]
+#[builder(mode=Panic)]
 #[derive(PartialEq,Debug,Default)]
 struct StructNamed {
     value: String,
@@ -18,7 +19,7 @@ struct StructNamed {
 }
 
 #[derive(Builder)]
-#[builder(mode=Result)]
+#[builder(mode=Panic)]
 #[derive(PartialEq,Debug,Default)]
 struct StructTuple(
     String,
@@ -26,15 +27,15 @@ struct StructTuple(
 );
 
 #[derive(Builder)]
-#[builder(mode=Result,Default=!,)]
+#[builder(mode=Panic,Default=!,)]
 #[derive(PartialEq,Debug,Default)]
 struct DisabledDefault {
-    value: String,
-    optional: Option<String>,
+    value: PathBuf,
+    optional: Option<PathBuf>,
 }
 
 #[derive(Builder)]
-#[builder(mode=Result,Default,)]
+#[builder(mode=Panic,Default,)]
 #[derive(PartialEq,Debug,)]
 struct EnabledDefault {
     value: String,
@@ -59,7 +60,7 @@ fn unit_build() {
     let built = StructUnit::builder()
         .build();
     assert_eq!(
-        Ok(StructUnit),
+        StructUnit,
         built,
     );
 }
@@ -69,10 +70,10 @@ fn named_build_default_implicit() {
     let built = StructNamed::builder()
         .build();
     assert_eq!(
-        Ok(StructNamed {
+        StructNamed {
             value: String::from(""),
             optional: None,
-        }),
+        },
         built,
     )
 }
@@ -84,10 +85,10 @@ fn named_build_default_explicit() {
         .optional_keep()
         .build();
     assert_eq!(
-        Ok(StructNamed {
+        StructNamed {
             value: String::from(""),
             optional: None,
-        }),
+        },
         built,
     )
 }
@@ -99,10 +100,10 @@ fn named_build_default_explicit_none() {
         .optional_none()
         .build();
     assert_eq!(
-        Ok(StructNamed {
+        StructNamed {
             value: String::from(""),
             optional: None,
-        }),
+        },
         built,
     )
 }
@@ -114,10 +115,10 @@ fn named_build_full() {
         .optional("optional")
         .build();
     assert_eq!(
-        Ok(StructNamed {
+        StructNamed {
             value: String::from("any value"),
             optional: Some(String::from("optional")),
-        }),
+        },
         built,
     )
 }
@@ -127,10 +128,10 @@ fn tuple_build_default_implicit() {
     let built = StructTuple::builder()
         .build();
     assert_eq!(
-        Ok(StructTuple(
+        StructTuple(
             String::from(""),
             None,
-        )),
+        ),
         built,
     )
 }
@@ -142,10 +143,10 @@ fn tuple_build_unordered_default_explicit() {
         .set1_keep()
         .build();
     assert_eq!(
-        Ok(StructTuple(
+        StructTuple(
             String::from(""),
             None,
-        )),
+        ),
         built,
     )
 }
@@ -157,10 +158,10 @@ fn tuple_build_unordered_default_explicit_none() {
         .set1_none()
         .build();
     assert_eq!(
-        Ok(StructTuple(
+        StructTuple(
             String::from(""),
             None,
-        )),
+        ),
         built,
     )
 }
@@ -172,22 +173,19 @@ fn tuple_build_unordered_full() {
         .set1("optional")
         .build();
     assert_eq!(
-        Ok(StructTuple(
+        StructTuple(
             String::from("any value"),
             Some(String::from("optional")),
-        )),
+        ),
         built,
     )
 }
 
 #[test]
+#[should_panic(expected = "Field value is missing")]
 fn disabled_build_default() {
-    let built = DisabledDefault::builder()
-        .build();
-    assert_eq!(
-        Err(String::from("Field value is missing")),
-        built,
-    )
+    DisabledDefault::builder().build();
+    panic!("Must panic")
 }
 
 #[test]
@@ -197,10 +195,10 @@ fn disabled_build_full() {
         .optional("optional")
         .build();
     assert_eq!(
-        Ok(DisabledDefault {
-            value: String::from("any value"),
-            optional: Some(String::from("optional")),
-        }),
+        DisabledDefault {
+            value: PathBuf::from("any value"),
+            optional: Some(PathBuf::from("optional")),
+        },
         built,
     )
 }
@@ -210,10 +208,10 @@ fn enabled_build_default() {
     let built = EnabledDefault::builder()
         .build();
     assert_eq!(
-        Ok(EnabledDefault {
+        EnabledDefault {
             value: String::from("42"),
             optional: Some(String::from("some")),
-        }),
+        },
         built,
     )
 }
@@ -224,10 +222,10 @@ fn enabled_build_partial() {
         .optional("overriden")
         .build();
     assert_eq!(
-        Ok(EnabledDefault {
+        EnabledDefault {
             value: String::from("42"),
             optional: Some(String::from("overriden")),
-        }),
+        },
         built,
     )
 }
@@ -238,24 +236,10 @@ fn enabled_build_option_none() {
         .optional_none()
         .build();
     assert_eq!(
-        Ok(EnabledDefault {
+        EnabledDefault {
             value: String::from("42"),
             optional: None,
-        }),
-        built,
-    )
-}
-
-#[test]
-fn enabled_build_option_default() {
-    let built = EnabledDefault::builder()
-        .optional_keep()
-        .build();
-    assert_eq!(
-        Ok(EnabledDefault {
-            value: String::from("42"),
-            optional: Some(String::from("some")),
-        }),
+        },
         built,
     )
 }

@@ -3,9 +3,6 @@
 // #############################################################################
 
 #[derive(PartialEq,Debug,Default)]
-struct StructUnit;
-
-#[derive(PartialEq,Debug,Default)]
 struct StructNamed {
     value: String,
     optional: Option<String>,
@@ -22,28 +19,6 @@ struct StructTuple(
 // #############################################################################
 
 // impl_target
-impl StructUnit {
-    pub fn builder() -> StructUnitBuilder {
-        ::core::default::Default::default()
-    }
-}
-
-// struct_builder
-#[derive(Default)]
-struct StructUnitBuilder {
-    __optional_set: ::core::marker::PhantomData<()>,
-}
-
-// impl_builder
-// impl_builder / impl_builder_build
-impl StructUnitBuilder {
-    pub fn build(self) -> StructUnit {
-        let built = <StructUnit as ::core::default::Default>::default();
-        built
-    }
-}
-
-// impl_target
 impl StructNamed {
     pub fn builder() -> StructNamedBuilder {
         ::core::default::Default::default()
@@ -51,11 +26,11 @@ impl StructNamed {
 }
 
 // struct_builder
-#[derive(Default)]
+#[derive(Default,)]
 struct StructNamedBuilder<VALUE=(),OPTIONAL=(),> {
-    value: ::core::option::Option<String>,
-    optional: ::core::option::Option<Option<String>>,
-    __optional_set: ::core::marker::PhantomData<(VALUE,OPTIONAL,)>,
+    value: ::macon::Keeping<::macon::Defaulting<String>>,
+    optional: ::macon::Keeping<::macon::Defaulting<Option<String>>>,
+    __typestate_markers: ::core::marker::PhantomData<(VALUE,OPTIONAL,)>,
 }
 
 // impl_builder
@@ -63,16 +38,23 @@ struct StructNamedBuilder<VALUE=(),OPTIONAL=(),> {
 impl<OPTIONAL,> StructNamedBuilder<(),OPTIONAL,> {
     pub fn value<VALUE: ::core::convert::Into<String>>(self, value: VALUE) -> StructNamedBuilder<String,OPTIONAL,> {
         StructNamedBuilder {
-            value: ::core::option::Option::Some(value.into()),
+            value: ::macon::Keeping::Set(::macon::Defaulting::Set(value.into())),
             optional: self.optional,
-            __optional_set: ::core::default::Default::default(),
+            __typestate_markers: ::core::default::Default::default(),
         }
     }
     pub fn value_keep(self) -> StructNamedBuilder<String,OPTIONAL,> {
         StructNamedBuilder {
-            value: ::core::option::Option::None,
+            value: ::macon::Keeping::Keep,
             optional: self.optional,
-            __optional_set: ::core::default::Default::default(),
+            __typestate_markers: ::core::default::Default::default(),
+        }
+    }
+    pub fn value_default(self) -> StructNamedBuilder<String,OPTIONAL,> {
+        StructNamedBuilder {
+            value: ::macon::Keeping::Set(::macon::Defaulting::Default),
+            optional: self.optional,
+            __typestate_markers: ::core::default::Default::default(),
         }
     }
 }
@@ -82,45 +64,47 @@ impl<VALUE,> StructNamedBuilder<VALUE,(),> {
     pub fn optional<OPTIONAL: ::core::convert::Into<String>>(self, optional: OPTIONAL) -> StructNamedBuilder<VALUE,Option<String>,> {
         StructNamedBuilder {
             value: self.value,
-            optional: ::core::option::Option::Some(::core::option::Option::Some(optional.into())),
-            __optional_set: ::core::default::Default::default(),
+            optional: ::macon::Keeping::Set(::macon::Defaulting::Set(::core::option::Option::Some(optional.into()))),
+            __typestate_markers: ::core::default::Default::default(),
         }
     }
     pub fn optional_none(self) -> StructNamedBuilder<VALUE,Option<String>,> {
         StructNamedBuilder {
             value: self.value,
-            optional: ::core::option::Option::Some(::core::option::Option::None),
-            __optional_set: ::core::default::Default::default(),
+            optional: ::macon::Keeping::Set(::macon::Defaulting::Set(::core::option::Option::None)),
+            __typestate_markers: ::core::default::Default::default(),
         }
     }
     pub fn optional_keep(self) -> StructNamedBuilder<VALUE,Option<String>,> {
         StructNamedBuilder {
             value: self.value,
-            optional: ::core::option::Option::None,
-            __optional_set: ::core::default::Default::default(),
+            optional: ::macon::Keeping::Keep,
+            __typestate_markers: ::core::default::Default::default(),
+        }
+    }
+    pub fn optional_default(self) -> StructNamedBuilder<VALUE,Option<String>,> {
+        StructNamedBuilder {
+            value: self.value,
+            optional: ::macon::Keeping::Set(::macon::Defaulting::Default),
+            __typestate_markers: ::core::default::Default::default(),
         }
     }
 }
 
-// impl_builder
 // impl_builder / impl_builder_build
 impl<VALUE,OPTIONAL,> StructNamedBuilder<VALUE,OPTIONAL,> {
     pub fn build(self) -> StructNamed {
         let mut built = <StructNamed as ::core::default::Default>::default();
-
-        if let ::core::option::Option::Some(value) = self.value {
-            built.value = value;
+        if self.value.is_set() {
+            built.value = self.value.unwrap().unwrap();
         }
-
-        if let ::core::option::Option::Some(optional) = self.optional {
-            built.optional = optional;
+        if self.optional.is_set() {
+            built.optional = self.optional.unwrap().unwrap();
         }
-
         built
     }
 }
 
-// impl_builder
 // impl_builder / impl_builder_from
 impl<VALUE,OPTIONAL,> ::core::convert::From<StructNamedBuilder<VALUE,OPTIONAL,>> for StructNamed {
     fn from(builder: StructNamedBuilder<VALUE,OPTIONAL,>) -> Self {
@@ -136,10 +120,10 @@ impl StructTuple {
 }
 
 // struct_builder
-#[derive(Default)]
+#[derive(Default,)]
 struct StructTupleBuilder<V0=(),V1=(),>(
-    ::core::option::Option<String>,
-    ::core::option::Option<Option<String>>,
+    ::macon::Keeping<::macon::Defaulting<String>>,
+    ::macon::Keeping<::macon::Defaulting<Option<String>>>,
     ::core::marker::PhantomData<(V0,V1,)>,
 );
 
@@ -148,14 +132,21 @@ struct StructTupleBuilder<V0=(),V1=(),>(
 impl<V1,> StructTupleBuilder<(),V1,> {
     pub fn set0<V0: ::core::convert::Into<String>>(self, v0: V0) -> StructTupleBuilder<String,V1,> {
         StructTupleBuilder(
-            ::core::option::Option::Some(v0.into()),
+            ::macon::Keeping::Set(::macon::Defaulting::Set(v0.into())),
             self.1,
             ::core::default::Default::default(),
         )
     }
     pub fn set0_keep(self) -> StructTupleBuilder<String,V1,> {
         StructTupleBuilder(
-            ::core::option::Option::None,
+            ::macon::Keeping::Keep,
+            self.1,
+            ::core::default::Default::default(),
+        )
+    }
+    pub fn set0_default(self) -> StructTupleBuilder<String,V1,> {
+        StructTupleBuilder(
+            ::macon::Keeping::Set(::macon::Defaulting::Default),
             self.1,
             ::core::default::Default::default(),
         )
@@ -169,6 +160,9 @@ impl StructTupleBuilder<(),(),> {
     pub fn keep(self) -> StructTupleBuilder<String,(),> {
         self.set0_keep()
     }
+    pub fn default(self) -> StructTupleBuilder<String,(),> {
+        self.set0_default()
+    }
 }
 
 // impl_builder / impl_builder_setter
@@ -176,21 +170,28 @@ impl<V0,> StructTupleBuilder<V0,(),> {
     pub fn set1<V1: ::core::convert::Into<String>>(self, v1: V1) -> StructTupleBuilder<V0,Option<String>,> {
         StructTupleBuilder(
             self.0,
-            ::core::option::Option::Some(::core::option::Option::Some(v1.into())),
+            ::macon::Keeping::Set(::macon::Defaulting::Set(::core::option::Option::Some(v1.into()))),
             ::core::default::Default::default(),
         )
     }
     pub fn set1_none(self) -> StructTupleBuilder<V0,Option<String>,> {
         StructTupleBuilder(
             self.0,
-            ::core::option::Option::Some(::core::option::Option::None),
+            ::macon::Keeping::Set(::macon::Defaulting::Set(::core::option::Option::None)),
             ::core::default::Default::default(),
         )
     }
     pub fn set1_keep(self) -> StructTupleBuilder<V0,Option<String>,> {
         StructTupleBuilder(
             self.0,
-            ::core::option::Option::None,
+            ::macon::Keeping::Keep,
+            ::core::default::Default::default(),
+        )
+    }
+    pub fn set1_default(self) -> StructTupleBuilder<V0,Option<String>,> {
+        StructTupleBuilder(
+            self.0,
+            ::macon::Keeping::Set(::macon::Defaulting::Default),
             ::core::default::Default::default(),
         )
     }
@@ -206,27 +207,25 @@ impl StructTupleBuilder<String,(),> {
     pub fn keep(self) -> StructTupleBuilder<String,Option<String>,> {
         self.set1_keep()
     }
+    pub fn default(self) -> StructTupleBuilder<String,Option<String>,> {
+        self.set1_default()
+    }
 }
 
-// impl_builder
 // impl_builder / impl_builder_build
 impl<V0,V1,> StructTupleBuilder<V0,V1,> {
     pub fn build(self) -> StructTuple {
         let mut built = <StructTuple as ::core::default::Default>::default();
-
-        if let ::core::option::Option::Some(v0) = self.0 {
-            built.0 = v0;
+        if self.0.is_set() {
+            built.0 = self.0.unwrap().unwrap();
         }
-
-        if let ::core::option::Option::Some(v1) = self.1 {
-            built.1 = v1;
+        if self.1.is_set() {
+            built.1 = self.1.unwrap().unwrap();
         }
-
         built
     }
 }
 
-// impl_builder
 // impl_builder / impl_builder_from
 impl<V0,V1,> ::core::convert::From<StructTupleBuilder<V0,V1,>> for StructTuple {
     fn from(builder: StructTupleBuilder<V0,V1,>) -> Self {
@@ -239,17 +238,7 @@ impl<V0,V1,> ::core::convert::From<StructTupleBuilder<V0,V1,>> for StructTuple {
 // #############################################################################
 
 #[test]
-fn unit_build() {
-    let built = StructUnit::builder()
-        .build();
-    assert_eq!(
-        StructUnit,
-        built,
-    );
-}
-
-#[test]
-fn named_build_default_implicit() {
+fn named_build_keep_implicit() {
     let built = StructNamed::builder()
         .build();
     assert_eq!(
@@ -262,7 +251,7 @@ fn named_build_default_implicit() {
 }
 
 #[test]
-fn named_build_default_explicit() {
+fn named_build_keep_explicit() {
     let built = StructNamed::builder()
         .value_keep()
         .optional_keep()
@@ -277,7 +266,7 @@ fn named_build_default_explicit() {
 }
 
 #[test]
-fn named_build_default_explicit_none() {
+fn named_build_keep_explicit_none() {
     let built = StructNamed::builder()
         .value_keep()
         .optional_none()
@@ -307,7 +296,22 @@ fn named_build_full() {
 }
 
 #[test]
-fn tuple_build_default_implicit() {
+fn named_build_default() {
+    let built = StructNamed::builder()
+        .value_default()
+        .optional_default()
+        .build();
+    assert_eq!(
+        StructNamed {
+            value: String::from(""),
+            optional: None,
+        },
+        built,
+    )
+}
+
+#[test]
+fn tuple_build_keep_implicit() {
     let built = StructTuple::builder()
         .build();
     assert_eq!(
@@ -320,7 +324,7 @@ fn tuple_build_default_implicit() {
 }
 
 #[test]
-fn tuple_build_unordered_default_explicit() {
+fn tuple_build_unordered_keep_explicit() {
     let built = StructTuple::builder()
         .set0_keep()
         .set1_keep()
@@ -335,7 +339,7 @@ fn tuple_build_unordered_default_explicit() {
 }
 
 #[test]
-fn tuple_build_unordered_default_explicit_none() {
+fn tuple_build_unordered_keep_explicit_none() {
     let built = StructTuple::builder()
         .set0_keep()
         .set1_none()
@@ -365,7 +369,22 @@ fn tuple_build_unordered_full() {
 }
 
 #[test]
-fn tuple_build_ordered_default_explicit() {
+fn tuple_build_unordered_default() {
+    let built = StructTuple::builder()
+        .set0_default()
+        .set1_default()
+        .build();
+    assert_eq!(
+        StructTuple(
+            String::from(""),
+            None,
+        ),
+        built,
+    )
+}
+
+#[test]
+fn tuple_build_ordered_keep_explicit() {
     let built = StructTuple::builder()
         .keep()
         .keep()
@@ -380,7 +399,7 @@ fn tuple_build_ordered_default_explicit() {
 }
 
 #[test]
-fn tuple_build_ordered_default_explicit_none() {
+fn tuple_build_ordered_keep_explicit_none() {
     let built = StructTuple::builder()
         .keep()
         .none()
@@ -404,6 +423,21 @@ fn tuple_ordered_build_full() {
         StructTuple(
             String::from("any value"),
             Some(String::from("optional")),
+        ),
+        built,
+    )
+}
+
+#[test]
+fn tuple_ordered_build_default() {
+    let built = StructTuple::builder()
+        .default()
+        .default()
+        .build();
+    assert_eq!(
+        StructTuple(
+            String::from(""),
+            None,
         ),
         built,
     )

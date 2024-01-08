@@ -55,6 +55,12 @@ Disable automatic [`Option`][Option] detection for given field. Generated setter
 * **`Option=WrappedType`** <br/>
 Enforce [`Option`][Option] support for given field. Generated setter will rely on `WrappedType`. See ["`Option` fields"](#option-fields).
 
+* **`Default=!`** <br/>
+Disable automatic [`Default`][Default] detection for given field. See ["`Default` fields"](#default-fields).
+
+* **`Default`** <br/>
+Enforce [`Default`][Default] support for given field. See ["`Default` fields"](#default-fields).
+
 
 ### Features
 
@@ -62,7 +68,12 @@ For any feature, you can find blueprints in [`./tests` directory)[tests] showing
 
 #### Typestate pattern (default)
 
-Blueprint: [`blueprint_typestate.rs`][blueprint_typestate.rs]
+Blueprints:
+* [`blueprint_typestate_named.rs`][blueprint_typestate_named.rs]
+* [`blueprint_typestate_tuple.rs`][blueprint_typestate_tuple.rs]
+* [`blueprint_typestate_option.rs`][blueprint_typestate_option.rs]
+* [`blueprint_typestate_default_field.rs`][blueprint_typestate_default_field.rs]
+* [`blueprint_typestate_default_struct.rs`][blueprint_typestate_default_struct.rs]
 
 By default, builder rely on typestate pattern. It means state is encoded in type (using generics). Applicable functions are implemented
 (callable) only when state (type) matches:
@@ -85,7 +96,12 @@ struct MyType {
 
 #### Panic on `build()`
 
-Blueprint: [`blueprint_panic.rs`][blueprint_panic.rs]
+Blueprints:
+* [`blueprint_panic_named.rs`][blueprint_panic_named.rs]
+* [`blueprint_panic_tuple.rs`][blueprint_panic_tuple.rs]
+* [`blueprint_panic_option.rs`][blueprint_panic_option.rs]
+* [`blueprint_panic_default_field.rs`][blueprint_panic_default_field.rs]
+* [`blueprint_panic_default_struct.rs`][blueprint_panic_default_struct.rs]
 
 By default, builder rely on typestate pattern to avoid misconfiguration by adding compilation constraint. You can switch to a builder
 that just panic when misconfigured:
@@ -93,12 +109,15 @@ that just panic when misconfigured:
 ```rust
 #[macro_use] extern crate macon;
 
+use std::path::PathBuf;
+
 #[derive(Builder)]
 #[builder(mode=Panic)]
 struct MyType {
   integer: i32,
-  string: String,
+  path: PathBuf,
 }
+
 let _mytype: MyType = MyType::builder()
     .integer(42)
     .build();
@@ -106,13 +125,20 @@ let _mytype: MyType = MyType::builder()
 
 #### Result on `build()`
 
-Blueprint: [`blueprint_result.rs`][blueprint_result.rs]
+Blueprints:
+* [`blueprint_result_named.rs`][blueprint_result_named.rs]
+* [`blueprint_result_tuple.rs`][blueprint_result_tuple.rs]
+* [`blueprint_result_option.rs`][blueprint_result_option.rs]
+* [`blueprint_result_default_field.rs`][blueprint_result_default_field.rs]
+* [`blueprint_result_default_struct.rs`][blueprint_result_default_struct.rs]
 
 By default, builder rely on typestate pattern to avoid misconfiguration by adding compilation constraint. You can switch to a builder
 that returns a [`Result`][Result]:
 
 ```rust
 #[macro_use] extern crate macon;
+
+use std::path::PathBuf;
 
 #[derive(Builder)]
 #[builder(mode=Result)]
@@ -125,7 +151,10 @@ let myTypeResult: Result<MyType,String> = MyType::builder()
     .integer(42)
     .build();
 
-assert!(myTypeResult.is_err());
+assert_eq!(
+  Err(String::from("Field path is missing")),
+  myTypeResult.map(|_| ())
+);
 ```
 
 #### Tuple
@@ -153,7 +182,7 @@ let _mytuple: MyTuple = MyTuple::builder()
     .build();
 ```
 
-Only for [`Typestate` mode](#typestate-pattern-default), you can use `set()/none()`-calls to assign values in order:
+Only for [`Typestate` mode](#typestate-pattern-default), you can use `set()`, [`none()`](#option-fields), [`keep()`](#default-struct) and [`default()`](#default-fields) calls to assign values in order:
 
 ```rust
 #[macro_use] extern crate macon;
@@ -173,6 +202,11 @@ let _mytuple: MyTuple = MyTuple::builder()
 
 #### `Into` argument
 
+Blueprints:
+* [`blueprint_typestate_named.rs`][blueprint_typestate_named.rs]
+* [`blueprint_panic_named.rs`][blueprint_panic_named.rs]
+* [`blueprint_result_named.rs`][blueprint_result_named.rs]
+
 Setter function argument is generic over [`Into`][Into] to ease conversion (especially for `&str`):
 
 ```rust
@@ -189,6 +223,11 @@ let _mytuple: MyTuple = MyTuple::builder()
 
 #### Implement `Into`
 
+Blueprints:
+* [`blueprint_typestate_named.rs`][blueprint_typestate_named.rs]
+* [`blueprint_panic_named.rs`][blueprint_panic_named.rs]
+* [`blueprint_result_named.rs`][blueprint_result_named.rs]
+
 Builders implement [`Into`][Into] for target type (and reverse [`From`][From] also). Except for `Result` mode which uses [`TryInto`][TryInto] / [`TryFrom`][TryFrom].
 
 ```rust
@@ -204,6 +243,11 @@ let _mytuple: MyStruct = MyStruct::builder()
 ```
 
 #### `Option` fields
+
+Blueprints:
+* [`blueprint_typestate_option.rs`][blueprint_typestate_option.rs]
+* [`blueprint_panic_option.rs`][blueprint_panic_option.rs]
+* [`blueprint_result_option.rs`][blueprint_result_option.rs]
 
 As their name suggests, [`Option`][Option] fields are facultative: you can build instance without setting them explicitly.
 
@@ -226,7 +270,7 @@ let built = WithOptional::builder()
 assert_eq!(Some(String::from("optional value")), built.optional);
 ```
 
-You can set them explicitly to [`None`][None] with `<field>_none`:
+You can set them explicitly to [`None`][None] with `<field>_none()` or `none()` for ordered setter:
 
 ```rust
 #[macro_use] extern crate macon;
@@ -297,9 +341,9 @@ assert_eq!(Some(String::from("aliased value")), built.optional);
 #### `Default` struct
 
 Blueprints:
-* [`blueprint_typestate_tuple.rs`][blueprint_typestate_tuple.rs]
-* [`blueprint_panic_tuple.rs`][blueprint_panic_tuple.rs]
-* [`blueprint_result_tuple.rs`][blueprint_result_tuple.rs]
+* [`blueprint_typestate_default_struct.rs`][blueprint_typestate_default_struct.rs]
+* [`blueprint_panic_default_struct.rs`][blueprint_panic_default_struct.rs]
+* [`blueprint_result_default_struct.rs`][blueprint_result_default_struct.rs]
 
 If struct derives [`Default`][Default], all fields are then optional and values are kept from default instance:
 
@@ -383,7 +427,7 @@ assert_eq!(
 );
 ```
 
-You can keep default value (from default built instance) explicitly with `<field>_keep` (or `keep` for ordered setter):
+You can keep default value (from default built instance) explicitly with `<field>_keep()` or `keep()` for ordered setter:
 
 ```rust
 let built = CustomDefaultStruct::builder()
@@ -402,6 +446,144 @@ assert_eq!(
 );
 ```
 
+#### `Default` fields
+
+Blueprints:
+* [`blueprint_typestate_default_field.rs`][blueprint_typestate_default_field.rs]
+* [`blueprint_panic_default_field.rs`][blueprint_panic_default_field.rs]
+* [`blueprint_result_default_field.rs`][blueprint_result_default_field.rs]
+
+If field implements [`Default`][Default], it is then optional and value is:
+
+1. kept from default instance if [struct derives `Default`](#default-struct),
+1. or, initialized with default value.
+
+```rust
+#[macro_use] extern crate macon;
+
+#[derive(Builder)]
+#[derive(Debug,PartialEq,)]
+struct WithDefaultFields {
+  integer: usize,
+  string: String,
+  optional: Option<String>,
+}
+
+let built = WithDefaultFields::builder()
+  .build();
+
+assert_eq!(
+  WithDefaultFields {
+    integer: 0,
+    string: String::from(""),
+    optional: None,
+  },
+  built,
+);
+```
+
+You can set them explicitly to default with `<field>_default()` or `default()` for ordered setter (e.g. [override default instance value](#default-struct)):
+
+```rust
+#[macro_use] extern crate macon;
+
+#[derive(Builder)]
+#[derive(Debug,PartialEq,)]
+struct WithDefaultFields {
+  integer: usize,
+  string: String,
+  optional: Option<String>,
+}
+
+let built = WithDefaultFields::builder()
+  .integer_default()
+  .string_default()
+  .optional_default()
+  .build();
+
+assert_eq!(
+  WithDefaultFields {
+    integer: 0,
+    string: String::from(""),
+    optional: None,
+  },
+  built,
+);
+```
+
+<div class="warning">
+
+In order to detect default fields, field type **name** must match (leading `::` and module path are optionals):
+
+* `bool`
+* `char`
+* `f32`
+* `f64`
+* `i8`
+* `i16`
+* `i32`
+* `i64`
+* `i128`
+* `isize`
+* `str`
+* `u8`
+* `u16`
+* `u32`
+* `u64`
+* `u128`
+* `usize`
+* `std::string::String`
+* `core::option::Option`
+* `std::option::Option`
+* `std::vec::Vec`
+* `alloc::vec::Vec`
+* `std::collections::HashMap`
+* `std::collections::hash_map::HashMap`
+* `std::collections::HashSet`
+* `std::collections::hash_set::HashSet`
+
+</div>
+
+If you use an alias or unsupported type, use `#[builder(Default)]` at field level to enable [`Default`][Default] support:
+
+```rust
+#[macro_use] extern crate macon;
+
+#[derive(Builder)]
+#[derive(Debug,PartialEq,)]
+struct ExplicitDefaultOnField {
+  #[builder(Default)]
+  boxed: Box<usize>,
+}
+
+let built = ExplicitDefaultOnField::builder()
+    .build();
+
+assert_eq!(
+  ExplicitDefaultOnField {
+    boxed: Box::from(0),
+  },
+  built,
+);
+```
+
+You can disable [`Default`][Default] support by using `#[builder(Default=!)]` at field level:
+
+```rust
+// Don't compile
+#[macro_use] extern crate macon;
+
+#[derive(Builder)]
+struct DisableDefaultOnField {
+  #[builder(Default=!)]
+  integer: usize,
+}
+
+DisableDefaultOnField::builder()
+  .integer_default()
+  .build();
+```
+
 
 [Default]: https://doc.rust-lang.org/core/default/trait.Default.html
 [From]: https://doc.rust-lang.org/std/convert/trait.From.html
@@ -413,12 +595,18 @@ assert_eq!(
 [TryInto]: https://doc.rust-lang.org/std/convert/trait.TryInto.html
 
 [tests]: https://github.com/loganmzz/macon-rs/tree/main/tests
-[blueprint_panic.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic.rs
-[blueprint_panic_default.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_default.rs
-[blueprint_panic_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_tuple.rs
-[blueprint_result.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result.rs
-[blueprint_result_default.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_default.rs
-[blueprint_result_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_tuple.rs
-[blueprint_typestate.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate.rs
-[blueprint_typestate_default.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_default.rs
-[blueprint_typestate_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_tuple.rs
+[blueprint_panic_default_field.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_default_field.rs
+[blueprint_panic_default_struct.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_default_struct.rs
+[blueprint_panic_named.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_named.rs
+[blueprint_panic_option.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_option.rs
+[blueprint_panic_tuple.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_tuple.rs
+[blueprint_result_default_field.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_default_field.rs
+[blueprint_result_default_struct.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_default_struct.rs
+[blueprint_result_named.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_named.rs
+[blueprint_result_option.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_option.rs
+[blueprint_result_tuple.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_tuple.rs
+[blueprint_typestate_default_field.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_default_field.rs
+[blueprint_typestate_default_struct.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_default_struct.rs
+[blueprint_typestate_named.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_named.rs
+[blueprint_typestate_option.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_option.rs
+[blueprint_typestate_tuple.rs]: http://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_tuple.rs

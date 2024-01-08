@@ -3,144 +3,60 @@ use macon::Builder;
 // #############################################################################
 // ################################### INPUT ###################################
 // #############################################################################
+use std::path::PathBuf;
 
 #[derive(Builder)]
 #[builder(mode=Typestate)]
 #[derive(PartialEq,Debug)]
-pub struct Foobar(u8,String,Option<String>,);
+struct Foobar(
+    PathBuf,
+    PathBuf,
+);
 
 // #############################################################################
 // ################################### TESTS ###################################
 // #############################################################################
 
 #[test]
-fn builder_build_set_full() {
+fn builder_build_unordered() {
     let built = Foobar::builder()
-        .set(2)
-        .set("foobar")
-        .set("optional")
+        .set1("/tmp/builder_build.1")
+        .set0("/tmp/builder_build.0")
         .build();
     assert_eq!(
         Foobar(
-            2,
-            String::from("foobar"),
-            Some(String::from("optional")),
+            PathBuf::from("/tmp/builder_build.0"),
+            PathBuf::from("/tmp/builder_build.1"),
         ),
         built,
     );
 }
 
 #[test]
-fn builder_build_set_partial_explicit() {
+fn builder_build_ordered() {
     let built = Foobar::builder()
-        .set(2)
-        .set("foobar")
-        .none()
+        .set("/tmp/builder_build.0")
+        .set("/tmp/builder_build.1")
         .build();
     assert_eq!(
         Foobar(
-            2,
-            String::from("foobar"),
-            None,
+            PathBuf::from("/tmp/builder_build.0"),
+            PathBuf::from("/tmp/builder_build.1"),
         ),
         built,
     );
 }
 
 #[test]
-fn builder_build_set_partial_implicit() {
-    let built = Foobar::builder()
-        .set(2)
-        .set("foobar")
-        .build();
-    assert_eq!(
-        Foobar(
-            2,
-            String::from("foobar"),
-            None,
-        ),
-        built,
-    );
-}
-
-#[test]
-fn builder_build_set_n_full() {
-    let built = Foobar::builder()
-        .set0(2)
-        .set1("foobar")
-        .set2("optional")
-        .build();
-    assert_eq!(
-        Foobar(
-            2,
-            String::from("foobar"),
-            Some(String::from("optional")),
-        ),
-        built,
-    );
-}
-
-#[test]
-fn builder_build_set_n_partial_explicit() {
-    let built = Foobar::builder()
-        .set0(2)
-        .set1("foobar")
-        .set2_none()
-        .build();
-    assert_eq!(
-        Foobar(
-            2,
-            String::from("foobar"),
-            None,
-        ),
-        built,
-    );
-}
-
-#[test]
-fn builder_build_set_n_partial_implicit() {
-    let built = Foobar::builder()
-        .set0(2)
-        .set1("foobar")
-        .build();
-    assert_eq!(
-        Foobar(
-            2,
-            String::from("foobar"),
-            None,
-        ),
-        built,
-    );
-}
-
-#[test]
-fn builder_into_full() {
+fn builder_into() {
     let built: Foobar = Foobar::builder()
-        .set0(3)
-        .set1("builder_into")
-        .set2("optional_into")
+        .set0("/tmp/builder_into.0")
+        .set1("/tmp/builder_into.1")
         .into();
     assert_eq!(
         Foobar(
-            3,
-            String::from("builder_into"),
-            Some(String::from("optional_into")),
-        ),
-        built,
-    );
-}
-
-#[test]
-fn builder_into_partial() {
-    let built: Foobar = Foobar::builder()
-        .set0(3)
-        .set1("builder_into")
-        .into();
-    assert_eq!(
-        Foobar(
-            3,
-            String::from("builder_into"),
-            None,
+            PathBuf::from("/tmp/builder_into.0"),
+            PathBuf::from("/tmp/builder_into.1"),
         ),
         built,
     );

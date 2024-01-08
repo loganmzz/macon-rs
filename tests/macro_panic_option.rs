@@ -6,7 +6,7 @@ use macon::Builder;
 use std::path::PathBuf;
 
 #[derive(Builder)]
-#[builder(mode=Typestate,)]
+#[builder(mode=Panic,)]
 #[derive(PartialEq,Debug)]
 struct Named {
     mandatory: PathBuf,
@@ -114,7 +114,7 @@ fn named_builder_into_partial_explicit() {
 }
 
 #[test]
-fn tuple_builder_build_unordered_full() {
+fn tuple_builder_build_full() {
     let built = Tuple::builder()
         .set1("/tmp/builder_build_full/option")
         .set0("/tmp/builder_build_full/mandatory")
@@ -129,7 +129,7 @@ fn tuple_builder_build_unordered_full() {
 }
 
 #[test]
-fn tuple_builder_build_unordered_partial_implicit() {
+fn tuple_builder_build_partial_implicit() {
     let built = Tuple::builder()
         .set0("/tmp/builder_build_partial_implicit/mandatory")
         .build();
@@ -143,54 +143,10 @@ fn tuple_builder_build_unordered_partial_implicit() {
 }
 
 #[test]
-fn tuple_builder_build_unordered_partial_explicit() {
+fn tuple_builder_build_partial_explicit() {
     let built = Tuple::builder()
         .set0("/tmp/builder_build_partial_explicit/mandatory")
         .set1_none()
-        .build();
-    assert_eq!(
-        Tuple(
-            PathBuf::from("/tmp/builder_build_partial_explicit/mandatory"),
-            None,
-        ),
-        built,
-    );
-}
-
-#[test]
-fn tuple_builder_build_ordered_full() {
-    let built = Tuple::builder()
-        .set("/tmp/builder_build_full/mandatory")
-        .set("/tmp/builder_build_full/option")
-        .build();
-    assert_eq!(
-        Tuple(
-            PathBuf::from("/tmp/builder_build_full/mandatory"),
-            Some(PathBuf::from("/tmp/builder_build_full/option")),
-        ),
-        built,
-    );
-}
-
-#[test]
-fn tuple_builder_build_ordered_partial_implicit() {
-    let built = Tuple::builder()
-        .set("/tmp/builder_build_partial_implicit/mandatory")
-        .build();
-    assert_eq!(
-        Tuple(
-            PathBuf::from("/tmp/builder_build_partial_implicit/mandatory"),
-            None,
-        ),
-        built,
-    );
-}
-
-#[test]
-fn tuple_builder_build_ordered_partial_explicit() {
-    let built = Tuple::builder()
-        .set("/tmp/builder_build_partial_explicit/mandatory")
-        .none()
         .build();
     assert_eq!(
         Tuple(

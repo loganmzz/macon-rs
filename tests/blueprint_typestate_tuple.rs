@@ -1,8 +1,13 @@
 // #############################################################################
 // ################################### INPUT ###################################
 // #############################################################################
+use std::path::PathBuf;
+
 #[derive(PartialEq,Debug)]
-pub struct Foobar(u8,String,Option<String>,);
+struct Foobar(
+    PathBuf,
+    PathBuf,
+);
 
 // #############################################################################
 // ############################## IMPLEMENTATION ###############################
@@ -11,235 +16,114 @@ pub struct Foobar(u8,String,Option<String>,);
 // impl_target
 impl Foobar {
     pub fn builder() -> FoobarBuilder {
-        ::core::default::Default::default()
+        <FoobarBuilder as ::core::default::Default>::default()
     }
 }
 
 // struct_builder
-#[derive(Default)]
-pub struct FoobarBuilder<V0=(), V1=(), V2=(),>(
+#[derive(Default,)]
+struct FoobarBuilder<V0=(),V1=(),>(
     V0,
     V1,
-    Option<String>,
-    ::core::marker::PhantomData<V2>,
+    ::core::marker::PhantomData<()>,
 );
 
 // impl_builder
 // impl_builder / impl_builder_setter
-impl<V1,V2,> FoobarBuilder<(),V1,V2,> {
-    pub fn set0<V0: ::core::convert::Into<u8>>(self, v0: V0) -> FoobarBuilder<u8,V1,V2> {
+impl<V1,> FoobarBuilder<(),V1,> {
+    pub fn set0<V0: ::core::convert::Into<PathBuf>>(self, v0: V0) -> FoobarBuilder<PathBuf,V1,> {
         FoobarBuilder(
             v0.into(),
             self.1,
-            self.2,
             ::core::default::Default::default(),
         )
     }
 }
-impl FoobarBuilder<(),(),(),> {
-    pub fn set<V0: ::core::convert::Into<u8>>(self, v0: V0) -> FoobarBuilder<u8,(),(),> {
+
+impl FoobarBuilder<(),(),> {
+    pub fn set<V0: ::core::convert::Into<PathBuf>>(self, v0: V0) -> FoobarBuilder<PathBuf,(),> {
         self.set0(v0)
     }
 }
 
 // impl_builder / impl_builder_setter
-impl<V0,V2,> FoobarBuilder<V0,(),V2,> {
-    pub fn set1<V1: ::core::convert::Into<String>>(self, v1: V1) -> FoobarBuilder<V0,String,V2,> {
+impl<V0,> FoobarBuilder<V0,(),> {
+    pub fn set1<V1: ::core::convert::Into<PathBuf>>(self, v1: V1) -> FoobarBuilder<V0,PathBuf,> {
         FoobarBuilder(
             self.0,
             v1.into(),
-            self.2,
             ::core::default::Default::default(),
         )
     }
 }
-impl FoobarBuilder<u8,(),(),> {
-    pub fn set<V1: ::core::convert::Into<String>>(self, v1: V1) -> FoobarBuilder<u8,String,(),> {
+
+impl FoobarBuilder<PathBuf,(),> {
+    pub fn set<V1: ::core::convert::Into<PathBuf>>(self, v1: V1) -> FoobarBuilder<PathBuf,PathBuf,> {
         self.set1(v1)
     }
 }
 
-// impl_builder / impl_builder_setter
-impl<V0,V1,> FoobarBuilder<V0,V1,(),> {
-    pub fn set2<V2: ::core::convert::Into<String>>(self, v2: V2) -> FoobarBuilder<V0,V1,Option<String>,> {
-        FoobarBuilder(
-            self.0,
-            self.1,
-            v2.into().into(),
-            ::core::default::Default::default(),
-        )
-    }
-    pub fn set2_none(self) -> FoobarBuilder<V0,V1,Option<String>,> {
-        FoobarBuilder(
-            self.0,
-            self.1,
-            ::core::option::Option::None,
-            ::core::default::Default::default(),
-        )
-    }
-}
-impl FoobarBuilder<u8,String,(),> {
-    pub fn set<V2: ::core::convert::Into<String>>(self, v2: V2) -> FoobarBuilder<u8,String,Option<String>,> {
-        self.set2(v2)
-    }
-    pub fn none(self) -> FoobarBuilder<u8,String,Option<String>,> {
-        self.set2_none()
-    }
-}
-
-// impl_builder
 // impl_builder / impl_builder_build
-impl<OPTION> FoobarBuilder<u8,String,OPTION,> {
+impl<> FoobarBuilder<PathBuf,PathBuf,> {
     pub fn build(self) -> Foobar {
         Foobar(
             self.0,
             self.1,
-            self.2,
         )
     }
 }
 
-// impl_builder
 // impl_builder / impl_builder_from
-impl<OPTION> ::core::convert::From<FoobarBuilder<u8,String,OPTION,>> for Foobar {
-    fn from(builder: FoobarBuilder<u8,String,OPTION,>) -> Self {
+impl<> ::core::convert::From<FoobarBuilder<PathBuf,PathBuf,>> for Foobar {
+    fn from(builder: FoobarBuilder<PathBuf,PathBuf,>) -> Self {
         builder.build()
     }
 }
-
 
 // #############################################################################
 // ################################### TESTS ###################################
 // #############################################################################
 
 #[test]
-fn builder_build_ordered_full() {
+fn builder_build_unordered() {
     let built = Foobar::builder()
-        .set(2)
-        .set("foobar")
-        .set("optional")
+        .set1("/tmp/builder_build.1")
+        .set0("/tmp/builder_build.0")
         .build();
     assert_eq!(
         Foobar(
-            2,
-            String::from("foobar"),
-            Some(String::from("optional")),
+            PathBuf::from("/tmp/builder_build.0"),
+            PathBuf::from("/tmp/builder_build.1"),
         ),
         built,
     );
 }
 
 #[test]
-fn builder_build_ordered_partial_explicit() {
+fn builder_build_ordered() {
     let built = Foobar::builder()
-        .set(2)
-        .set("foobar")
-        .none()
+        .set("/tmp/builder_build.0")
+        .set("/tmp/builder_build.1")
         .build();
     assert_eq!(
         Foobar(
-            2,
-            String::from("foobar"),
-            None,
+            PathBuf::from("/tmp/builder_build.0"),
+            PathBuf::from("/tmp/builder_build.1"),
         ),
         built,
     );
 }
 
 #[test]
-fn builder_build_ordered_partial_implicit() {
-    let built = Foobar::builder()
-        .set(2)
-        .set("foobar")
-        .build();
-    assert_eq!(
-        Foobar(
-            2,
-            String::from("foobar"),
-            None,
-        ),
-        built,
-    );
-}
-
-#[test]
-fn builder_build_unordered_full() {
-    let built = Foobar::builder()
-        .set0(2)
-        .set1("foobar")
-        .set2("optional")
-        .build();
-    assert_eq!(
-        Foobar(
-            2,
-            String::from("foobar"),
-            Some(String::from("optional")),
-        ),
-        built,
-    );
-}
-
-#[test]
-fn builder_build_unordered_partial_explicit() {
-    let built = Foobar::builder()
-        .set0(2)
-        .set1("foobar")
-        .set2_none()
-        .build();
-    assert_eq!(
-        Foobar(
-            2,
-            String::from("foobar"),
-            None,
-        ),
-        built,
-    );
-}
-
-#[test]
-fn builder_build_unordered_partial_implicit() {
-    let built = Foobar::builder()
-        .set0(2)
-        .set1("foobar")
-        .build();
-    assert_eq!(
-        Foobar(
-            2,
-            String::from("foobar"),
-            None,
-        ),
-        built,
-    );
-}
-
-#[test]
-fn builder_into_full() {
+fn builder_into() {
     let built: Foobar = Foobar::builder()
-        .set0(3)
-        .set1("builder_into")
-        .set2("optional_into")
+        .set0("/tmp/builder_into.0")
+        .set1("/tmp/builder_into.1")
         .into();
     assert_eq!(
         Foobar(
-            3,
-            String::from("builder_into"),
-            Some(String::from("optional_into")),
-        ),
-        built,
-    );
-}
-
-#[test]
-fn builder_into_partial() {
-    let built: Foobar = Foobar::builder()
-        .set0(3)
-        .set1("builder_into")
-        .into();
-    assert_eq!(
-        Foobar(
-            3,
-            String::from("builder_into"),
-            None,
+            PathBuf::from("/tmp/builder_into.0"),
+            PathBuf::from("/tmp/builder_into.1"),
         ),
         built,
     );

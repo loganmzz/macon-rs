@@ -19,7 +19,7 @@ impl ResultPanicGenerator {
     /// Generate builder struct
     pub fn struct_builder(&self) -> TokenStream {
         let vis = &self.builder.vis;
-        let fields = self.builder.group(self.properties().result_fields());
+        let fields = self.properties().result_fields();
         let builder_name = &self.builder.ident;
         let delim = if self.builder.is_tuple {
             quote!(;)
@@ -27,7 +27,7 @@ impl ResultPanicGenerator {
             quote!()
         };
         quote! {
-            #[derive(Default)]
+            #[derive(Default,)]
             #vis struct #builder_name #fields #delim
         }
     }
@@ -53,35 +53,49 @@ impl ResultPanicGenerator {
     /// Generate fluent field setters
     pub fn impl_builder_setters(&self) -> TokenStream {
         self.properties().to_token(|f| {
-            let method = f.setter();
+            let setter = f.setter();
             let typevar = f.typevar();
-            let id = f.id();
-            let ty = f.ty_into();
             let ident = &f.ident;
-            let mut value = quote!(::core::option::Option::Some(#ident.into()));
-            if f.default.is_enabled() && f.option.is_enabled() {
-                value = quote!(::core::option::Option::Some(#value));
-            }
+            let setter_standard = {
+                let assign_standard = f.result_assign(Setter::Standard);
+                let ty = f.ty_into();
+                quote! {
+                    pub fn #setter<#typevar: ::core::convert::Into<#ty>>(mut self, #ident: #typevar) -> Self {
+                        #assign_standard
+                        self
+                    }
+                }
+            };
             let setter_none = if f.option.is_enabled() {
                 let setter_none = f.setter_none();
-                let mut value_none = quote!(::core::option::Option::None);
-                if f.default.is_enabled() && f.option.is_enabled() {
-                    value_none = quote!(::core::option::Option::Some(#value_none));
-                }
+                let assign_none = f.result_assign(Setter::None);
                 quote! {
                     pub fn #setter_none(mut self) -> Self {
-                        self.#id = #value_none;
+                        #assign_none
                         self
                     }
                 }
             } else {
                 quote!()
             };
-            let setter_keep = if f.default.is_enabled() {
+            let setter_keep = if self.builder.default.is_enabled() {
                 let setter_keep = f.setter_keep();
+                let assign_keep = f.result_assign(Setter::Keep);
                 quote! {
                     pub fn #setter_keep(mut self) -> Self {
-                        self.#id = ::core::option::Option::None;
+                        #assign_keep
+                        self
+                    }
+                }
+            } else {
+                quote!()
+            };
+            let setter_default = if f.default.is_enabled() {
+                let setter_default = f.setter_default();
+                let assign_default = f.result_assign(Setter::Default);
+                quote! {
+                    pub fn #setter_default(mut self) -> Self {
+                        #assign_default
                         self
                     }
                 }
@@ -89,12 +103,10 @@ impl ResultPanicGenerator {
                 quote!()
             };
             quote! {
-                pub fn #method<#typevar: ::core::convert::Into<#ty>>(mut self, #ident: #typevar) -> Self {
-                    self.#id = #value;
-                    self
-                }
+                #setter_standard
                 #setter_none
                 #setter_keep
+                #setter_default
             }
         })
     }
@@ -121,7 +133,7 @@ impl ResultPanicGenerator {
 
     pub fn impl_builder_build_from_default(&self) -> TokenStream {
         let target = &self.builder.target;
-        let overrides = self.properties().typestate_build_overrides();
+        let overrides = self.properties().result_override();
         let mut result = quote!(built);
         if self.builder.mode == Mode::Result {
             result = quote!(::core::result::Result::Ok(#result))
@@ -136,29 +148,29 @@ impl ResultPanicGenerator {
     pub fn impl_builder_build_from_scratch(&self) -> TokenStream {
         let target = &self.builder.target;
         let check_fields = self.properties().to_token(|f| {
-            if f.option.is_enabled() {
+            if ! f.is_required() {
                 return quote!();
             }
             let id = f.id();
             let message = format!("Field {} is missing", id);
             quote! {
-                if self.#id.is_none() {
+                if self.#id.is_undefined() {
                     errors.push(#message.into());
                 }
             }
         });
-        let assign = self.builder.group(self.properties().result_build());
+        let assign = self.properties().result_build();
         let create = quote! {
             #target #assign
         };
         let success = match self.builder.mode {
             Mode::Panic => create,
-            Mode::Result => quote!(Ok(#create)),
+            Mode::Result => quote!(::core::result::Result::Ok(#create)),
             _ => panic!("Unsupported mode {:?}", self.builder.mode),
         };
         let error = match self.builder.mode {
-            Mode::Panic => quote!(panic!("{}", errors.join("\n"))),
-            Mode::Result => quote!(Err(errors.join("\n"))),
+            Mode::Panic => quote!(panic!("{}", errors.join("\n"));),
+            Mode::Result => quote!(::core::result::Result::Err(errors.join("\n"))),
             _ => panic!("Unsupported mode {:?}", self.builder.mode),
         };
         quote! {

@@ -1,0 +1,23 @@
+[package]
+name = "macon_derive"
+version.workspace = true
+edition.workspace = true
+
+authors.workspace = true
+license.workspace = true
+description.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+readme = "CRATES_IO.md"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
+syn = { workspace = true, features = ["extra-traits"] }
+
+[dev-dependencies]
+macon_api = { path = "../macon_api" }
