@@ -3,6 +3,7 @@ pub use crate::model::{
     Mode,
     Properties,
     Property,
+    Setter,
 };
 pub use proc_macro2::{
     Ident,

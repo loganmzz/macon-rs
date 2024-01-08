@@ -55,3 +55,9 @@ Toolchain version is left unspecified, only edition is set. Let's your [`rustup`
 ### Show expansion on test
 
 The `tests/*.rs` are good way to see how to use and debug macro. Consider expanding test files with: `cargo expand --test <test basename>`. Example: `cargo expand --test 'mode_panic'`.
+
+### Open documenation
+
+```bash
+cargo doc --document-private-items --no-deps --open
+```

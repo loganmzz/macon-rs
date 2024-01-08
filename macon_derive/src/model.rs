@@ -1,5 +1,4 @@
-use ::std::borrow::Cow;
-
+use std::borrow::Cow;
 use proc_macro2::{
     Delimiter,
     Group,
@@ -11,7 +10,6 @@ use quote::{
     quote, ToTokens,
 };
 use syn::{
-    AngleBracketedGenericArguments,
     Attribute,
     Data,
     DeriveInput,
@@ -53,6 +51,17 @@ pub enum Setting<T> {
     Undefined,
     Disabled,
     Enabled(T),
+}
+
+#[derive(Clone,Copy,Debug,PartialEq,)]
+pub enum Setter {
+    Standard,
+    None,
+    Keep,
+    Default,
+}
+
+impl<T: Copy> Copy for Setting<T> {
 }
 
 impl<T: PartialEq> PartialEq for Setting<T> {
@@ -125,19 +134,24 @@ impl<T> From<T> for Setting<T> {
 #[derive(Debug,Default)]
 pub struct PropertySettings {
     pub option: Setting<Type>,
+    pub default: Setting<()>,
 }
 
 #[derive(Debug,Default,)]
-pub struct Properties(Vec<Property>);
+pub struct Properties {
+    pub is_tuple: bool,
+    pub default: Setting<()>,
+    items: Vec<Property>,
+}
 impl ::core::ops::Deref for Properties {
     type Target = Vec<Property>;
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.items
     }
 }
 impl ::core::ops::DerefMut for Properties {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.items
     }
 }
 impl Properties {
@@ -159,6 +173,7 @@ pub struct Property {
     pub is_tuple: bool,
     pub option: Setting<Type>,
     pub default: Setting<()>,
+    pub struct_default: Setting<()>,
 }
 
 impl Default for Mode {
@@ -236,6 +251,7 @@ impl Builder {
             if nested.path.is_ident("Default") {
                 if ! self.default.is_defined() {
                     self.default = Setting::enable(());
+                    self.properties.default = Setting::enable(());
                 }
             }
             Ok(())
@@ -274,7 +290,7 @@ impl Builder {
                 }
             } else if nested.path.is_ident("Default") {
                 if nested.input.is_empty() || nested.input.peek(Token![,]) {
-                    self.default = Setting::enable(());
+                    self.set_default(Setting::enable(()));
                     Ok(())
                 } else if nested.input.peek(Token![=]) {
                     let value: Type = nested
@@ -283,7 +299,7 @@ impl Builder {
                         .parse()
                         .map_err_context("Unable to parse Default value into Type for struct builder attribute")?;
                     if let Type::Never(_) = value {
-                        self.default = Setting::disable();
+                        self.set_default(Setting::disable());
                         Ok(())
                     } else {
                         Err(nested.error(format!("Unsupported Default value {:?} for struct builder attribute", value)))
@@ -303,8 +319,7 @@ impl Builder {
             Data::Struct(data_struct) => {
                 match data_struct.fields {
                     Fields::Named(fields_named) => {
-                        self.is_tuple = false;
-                        self.properties = Default::default();
+                        self.set_is_tuple(false);
                         for (ordinal, field) in fields_named.named.into_iter().enumerate() {
                             let value = Property::from_field(self, false, ordinal, field)?;
                             self.properties.push(value);
@@ -312,12 +327,10 @@ impl Builder {
                         Ok(())
                     },
                     Fields::Unit => {
-                        self.properties = Default::default();
                         Ok(())
                     },
                     Fields::Unnamed(fields_unamed) => {
-                        self.is_tuple = true;
-                        self.properties = Default::default();
+                        self.set_is_tuple(true);
                         for (ordinal, field)  in fields_unamed.unnamed.into_iter().enumerate() {
                             let value = Property::from_field(self, true, ordinal, field)?;
                             self.properties.push(value);
@@ -335,16 +348,14 @@ impl Builder {
         }
     }
 
-    pub fn delimiter(&self) -> Delimiter {
-        if self.is_tuple {
-            Delimiter::Parenthesis
-        } else {
-            Delimiter::Brace
-        }
+    pub fn set_is_tuple(&mut self, is_tuple: bool) {
+        self.is_tuple = is_tuple;
+        self.properties.is_tuple = is_tuple;
     }
 
-    pub fn group(&self, stream: TokenStream) -> TokenStream {
-        Group::new(self.delimiter(), stream).to_token_stream()
+    pub fn set_default(&mut self, default: Setting<()>) {
+        self.default = default;
+        self.properties.default = default;
     }
 }
 
@@ -385,27 +396,43 @@ impl Property {
                             },
                             Type::Never(_) => Setting::disable(),
                             _ => Setting::enable(type_),
+                        };
+                    } else if nested.path.is_ident("Default") {
+                        if settings.default.is_defined() {
+                            return Err(nested.error(format!("Default has been already specified: {:?}", settings.default)));
+                        }
+                        if nested.input.is_empty() || nested.input.peek(Token![,]) {
+                            settings.default = Setting::enable(());
+                        } else if nested.input.peek(Token![=]) {
+                            let value: Type = nested
+                                .value()
+                                .map_err_context(format!("Unable to parse Default value for field ({:?}) builder attribute", name))?
+                                .parse()
+                                .map_err_context(format!("Unable to parse Default value into Type for field ({:?}) builder attribute", name))?;
+                            if let Type::Never(_) = value {
+                                settings.default = Setting::disable();
+                            } else {
+                                return Err(nested.error(format!("Unsupported Default value {:?} for field ({:?}) builder attribute", value, name)));
+                            }
+                        } else {
+                            return Err(nested.error(format!("Unsupported Default format {:?} for field ({:?}) builder attribute", nested.input, name)));
                         }
                     } else {
-                        return Err(nested.error(format!("Unsupported option {:?}", nested.path)));
+                        return Err(nested.error(format!("Unsupported option {:?} for field ({:?}) builder attribute", nested.path, name)));
                     }
                     Ok(())
                 })?;
             }
         if settings.option.is_undefined() {
-            let (path, generic_args) = Self::read_path(&field.ty);
-            match path.as_str() {
-                "std::option::Option"|"core::option::Option"|"Option" => {
-                    if let Some(generic_args) = generic_args {
-                        if generic_args.args.len() == 1 {
-                            if let Some(GenericArgument::Type(type_)) = generic_args.args.first() {
-                                settings.option = Setting::enable(type_.clone());
-                            }
-                        }
-                    }
-                },
-                _ => {},
-            };
+            if let Some(ty) = Self::get_option_arg(&field.ty) {
+                settings.option = Setting::enable(ty.clone());
+            }
+        }
+        if settings.default.is_undefined() {
+            let default_types = crate::config::get().default_types();
+            if default_types.match_type(&field.ty) {
+                settings.default = Setting::Enabled(());
+            }
         }
         Ok(Self {
             ordinal,
@@ -414,28 +441,35 @@ impl Property {
             ty: field.ty,
             is_tuple,
             option: settings.option,
-            default: builder.default.clone(),
+            default: settings.default,
+            struct_default: builder.default.clone(),
         })
     }
 
-    pub fn read_path(ty: &Type) -> (String, Option<&AngleBracketedGenericArguments>) {
-        match ty {
-            Type::Path(typepath) => {
-                let path = typepath.path.segments
-                    .iter()
-                    .map(|pathsegment| pathsegment.ident.to_string())
-                    .collect::<Vec<_>>()
-                    .join("::");
-                let generic_args = typepath.path.segments.last().and_then(|s| match s.arguments {
-                    PathArguments::None => None,
-                    PathArguments::Parenthesized(_) => None,
-                    PathArguments::AngleBracketed(ref args) => Some(args),
-                });
-                (path, generic_args)
-            },
-            _ => {
-                ("".into(), None,)
+    pub fn get_option_arg(ty: &Type) -> Option<&Type> {
+        if crate::config::get().option_types().match_type(ty) {
+            match ty {
+                Type::Path(typepath) => typepath
+                    .path
+                    .segments
+                    .last()
+                    .and_then(|path_segment| match path_segment.arguments {
+                        PathArguments::AngleBracketed(ref args) => Some(args),
+                        _ => None,
+                    })
+                    .and_then(|args| if args.args.len() == 1 {
+                        if let Some(GenericArgument::Type(ty)) = args.args.first() {
+                            Some(ty)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }),
+                _ => None,
             }
+        } else {
+            None
         }
     }
 
@@ -473,6 +507,10 @@ impl Property {
         format_ident!("{}_keep", self.setter())
     }
 
+    pub fn setter_default(&self) -> Ident {
+        format_ident!("{}_default", self.setter())
+    }
+
     pub fn prefix(&self) -> TokenStream {
         if self.is_tuple {
             quote!()
@@ -482,42 +520,11 @@ impl Property {
         }
     }
 
-    pub fn assign(&self, target: &Property, is_none: bool, is_default: bool) -> TokenStream {
-        let prefix = self.prefix();
-        let value = if self.name == target.name {
-            if is_default {
-                quote!(::core::option::Option::None)
-            } else {
-                let mut value = if is_none {
-                    quote!(::core::option::Option::None)
-                } else {
-                    let ident = &self.ident;
-                    if self.option.is_enabled() {
-                        quote!(::core::option::Option::Some(#ident.into()))
-                    } else {
-                        quote!(#ident.into())
-                    }
-                };
-                if self.default.is_enabled() {
-                    value = quote!(::core::option::Option::Some(#value));
-                }
-                value
-            }
-        } else {
-            let id = self.id();
-            quote!(self.#id)
-        };
-        quote!(#prefix #value,)
-    }
-
-    pub fn build_overrides(&self) -> TokenStream {
-        let ident = &self.ident;
-        let id = self.id();
-        quote! {
-            if let ::core::option::Option::Some(#ident) = self.#id {
-                built.#id = #ident;
-            }
-        }
+    pub fn is_required(&self) -> bool {
+        ! self.option.is_enabled() &&
+        ! self.default.is_enabled() &&
+        ! self.struct_default.is_enabled() &&
+        true
     }
 
     pub fn typestate(&self, is_var: Option<bool>) -> TokenStream {
@@ -534,21 +541,25 @@ impl Property {
         }
     }
 
-    pub fn typestate_init(&self) -> TokenStream {
+    pub fn typestate_struct_field(&self) -> TokenStream {
         let prefix = self.prefix();
-        let mut ty = if self.option.is_enabled() || self.default.is_enabled() {
-            self.ty.to_token_stream()
+        let ty = if ! self.is_required() {
+            let mut ty = self.ty.to_token_stream();
+            if self.default.is_enabled() {
+                ty = quote!(::macon::Defaulting<#ty>);
+            }
+            if self.struct_default.is_enabled() {
+                ty = quote!(::macon::Keeping<#ty>);
+            }
+            ty
         } else {
             self.typevar().to_token_stream()
         };
-        if self.default.is_enabled() {
-            ty = quote!(::core::option::Option<#ty>);
-        }
         quote!(#prefix #ty,)
     }
 
     pub fn typestate_optional_marker(&self) -> TokenStream {
-        if self.option.is_enabled() || self.default.is_enabled() {
+        if ! self.is_required() {
             let typevar = self.typevar();
             quote!(#typevar,)
         } else {
@@ -581,11 +592,7 @@ impl Property {
     }
 
     pub fn typestate_state_final(&self) -> TokenStream {
-        if self.option.is_enabled() || self.default.is_enabled() {
-            self.typestate(Some(true))
-        } else {
-            self.typestate(Some(false))
-        }
+        self.typestate(Some(! self.is_required()))
     }
 
     pub fn typestate_setter_impl(&self, target: &Property) -> TokenStream {
@@ -596,34 +603,173 @@ impl Property {
         }
     }
 
-    pub fn typestate_build(&self) -> TokenStream {
-        let id = self.id();
+    pub fn typestate_assign(&self, target: &Property, setter: Setter) -> TokenStream {
         let prefix = self.prefix();
-        quote!(#prefix self.#id,)
+        let ident = &self.ident;
+        let value = if self.name == target.name {
+            match setter {
+                Setter::Standard => {
+                    let mut value = quote!(#ident.into());
+                    if self.option.is_enabled() {
+                        value = quote!(::core::option::Option::Some(#value));
+                    }
+                    if self.default.is_enabled() {
+                        value = quote!(::macon::Defaulting::Set(#value));
+                    }
+                    if self.struct_default.is_enabled() {
+                        value = quote!(::macon::Keeping::Set(#value));
+                    }
+                    value
+                },
+                Setter::None => {
+                    let mut value = quote!(::core::option::Option::None);
+                    if self.default.is_enabled() {
+                        value = quote!(::macon::Defaulting::Set(#value));
+                    }
+                    if self.struct_default.is_enabled() {
+                        value = quote!(::macon::Keeping::Set(#value));
+                    }
+                    value
+                },
+                Setter::Keep => quote!(::macon::Keeping::Keep),
+                Setter::Default => {
+                    let mut value = quote!(::macon::Defaulting::Default);
+                    if self.struct_default.is_enabled() {
+                        value = quote!(::macon::Keeping::Set(#value));
+                    }
+                    value
+                },
+            }
+        } else {
+            let id = self.id();
+            quote!(self.#id)
+        };
+        quote!(#prefix #value,)
+    }
+
+    pub fn typestate_value(&self) -> TokenStream {
+        let id = self.id();
+        let mut value = quote!(self.#id);
+        if self.struct_default.is_enabled() {
+            value = quote!(#value.unwrap());
+        }
+        if self.default.is_enabled() {
+            value = quote!(#value.unwrap());
+        }
+        value
+    }
+
+    pub fn typestate_build(&self) -> TokenStream {
+        let prefix = self.prefix();
+        let value = self.typestate_value();
+        quote!(#prefix #value,)
+    }
+
+    pub fn typestate_override(&self) -> TokenStream {
+        let id = self.id();
+        let value = self.typestate_value();
+        quote! {
+            if self.#id.is_set() {
+                built.#id = #value;
+            }
+        }
     }
 
     pub fn result_field(&self) -> TokenStream {
         let prefix = self.prefix();
-        let ty = if self.default.is_enabled() {
-            &self.ty
+        let mut ty = self.ty.to_token_stream();
+        if ! self.is_required() {
+            if self.default.is_enabled() {
+                ty = quote!(::macon::Defaulting<#ty>);
+            }
+            if self.struct_default.is_enabled() {
+                ty = quote!(::macon::Keeping<#ty>);
+            }
         } else {
-            self.ty_into()
+            ty = quote!(::macon::Building<#ty>);
+        }
+        quote!(#prefix #ty,)
+    }
+
+    pub fn result_assign(&self, setter: Setter) -> TokenStream {
+        let ident = &self.ident;
+        let id = self.id();
+        let mut value = match setter {
+            Setter::Standard => {
+                let mut value = quote!(#ident.into());
+                if self.option.is_enabled() {
+                    value = quote!(::core::option::Option::Some(#value));
+                }
+                value
+            },
+            Setter::None => quote!(::core::option::Option::None),
+            Setter::Keep => quote!(::macon::Keeping::Keep),
+            Setter::Default => quote!(::macon::Defaulting::Default),
         };
-        quote!(#prefix ::core::option::Option<#ty>,)
+        if ! self.is_required() {
+            if setter != Setter::Keep {
+                if setter != Setter::Default {
+                    if self.default.is_enabled() {
+                        value = quote!(::macon::Defaulting::Set(#value));
+                    }
+                }
+                if self.struct_default.is_enabled() {
+                    value = quote!(::macon::Keeping::Set(#value));
+                }
+            }
+        } else {
+            value = quote!(::macon::Building::Set(#value));
+        }
+        quote!(self.#id = #value;)
+    }
+
+    pub fn result_value(&self) -> TokenStream {
+        let id = self.id();
+        let mut value = quote!(self.#id);
+        if ! self.is_required() {
+            if self.struct_default.is_enabled() {
+                value = quote!(#value.unwrap());
+            }
+            if self.default.is_enabled() {
+                value = quote!(#value.unwrap());
+            }
+        } else {
+            value = quote!(#value.unwrap());
+        }
+        value
     }
 
     pub fn result_build(&self) -> TokenStream {
         let prefix = self.prefix();
+        let value = self.result_value();
+        quote!(#prefix #value,)
+    }
+
+    pub fn result_override(&self) -> TokenStream {
         let id = self.id();
-        if self.option.is_enabled() {
-            quote!(#prefix self.#id,)
-        } else {
-            quote!(#prefix self.#id.unwrap(),)
+        let value = self.result_value();
+        quote! {
+            if self.#id.is_set() {
+                built.#id = #value;
+            }
         }
     }
+
 }
 
 impl Properties {
+    pub fn delimiter(&self) -> Delimiter {
+        if self.is_tuple {
+            Delimiter::Parenthesis
+        } else {
+            Delimiter::Brace
+        }
+    }
+
+    pub fn group(&self, stream: TokenStream) -> TokenStream {
+        Group::new(self.delimiter(), stream).to_token_stream()
+    }
+
     pub fn typestate_default(&self) -> TokenStream {
         self.to_token(|f| {
             let typestate = f.typevar();
@@ -631,8 +777,21 @@ impl Properties {
         })
     }
 
-    pub fn typestate_init(&self) -> TokenStream {
-        self.to_token(|p| p.typestate_init())
+    pub fn typestate_struct_fields(&self) -> TokenStream {
+        let data_fields = self.to_token(|p| p.typestate_struct_field());
+        let marker_field = self.typestate_marker_field(self.typestate_optional_marker());
+        self.group(quote! {
+            #data_fields
+            #marker_field
+        })
+    }
+
+    pub fn typestate_marker_field(&self, typestate: TokenStream) -> TokenStream {
+        if self.is_tuple {
+            quote!(::core::marker::PhantomData<(#typestate)>,)
+        } else {
+            quote!(__typestate_markers: ::core::marker::PhantomData<(#typestate)>,)
+        }
     }
 
     pub fn typestate_optional_marker(&self) -> TokenStream {
@@ -651,30 +810,42 @@ impl Properties {
         self.to_token(|p| p.typestate_setter_impl(target))
     }
 
-    pub fn typestate_build(&self) -> TokenStream {
-        self.to_token(|p| p.typestate_build())
+    pub fn typestate_assign(&self, target: &Property, setter: Setter) -> TokenStream {
+        let data = self.to_token(|p| p.typestate_assign(target, setter));
+        let marker = if self.is_tuple {
+            quote!(::core::default::Default::default(),)
+        } else {
+            quote!(__typestate_markers: ::core::default::Default::default(),)
+        };
+        self.group(quote! {
+            #data
+            #marker
+        })
     }
 
-    pub fn typestate_build_overrides(&self) -> TokenStream {
-        self.to_token(|p| p.build_overrides())
+    pub fn typestate_build(&self) -> TokenStream {
+        self.group(self.to_token(|p| p.typestate_build()))
+    }
+
+    pub fn typestate_override(&self) -> TokenStream {
+        self.to_token(|p| p.typestate_override())
     }
 
     pub fn result_fields(&self) -> TokenStream {
-        self.to_token(|p| p.result_field())
+        self.group(self.to_token(|p| p.result_field()))
     }
 
     pub fn result_build(&self) -> TokenStream {
-        self.to_token(|p| p.result_build())
+        self.group(self.to_token(|p| p.result_build()))
     }
 
-    pub fn assign(&self, target: &Property, is_none: bool, is_default: bool) -> TokenStream {
-        self.to_token(|p| p.assign(target, is_none, is_default))
+    pub fn result_override(&self) -> TokenStream {
+        self.to_token(|p| p.result_override())
     }
 }
 
 #[cfg(test)]
 pub mod tests {
-    use quote::ToTokens;
     use syn::{
         parse_quote,
         parse_str,
@@ -758,7 +929,7 @@ pub mod tests {
         assert_eq!(builder.ident, format_ident!("WithOptionBuilder"), "builder.ident");
         assert_eq!(builder.target, format_ident!("WithOption"), "builder.target");
 
-        let mut iter = builder.properties.0.into_iter();
+        let mut iter = builder.properties.items.into_iter();
 
         let optional = iter.next().expect("builder.properties[0]");
         assert_eq!(optional.ident, format_ident!("optional"));
@@ -782,7 +953,7 @@ pub mod tests {
         assert_eq!(builder.ident, format_ident!("DisabledOptionAtStructBuilder"), "builder.ident");
         assert_eq!(builder.target, format_ident!("DisabledOptionAtStruct"), "builder.target");
 
-        let mut iter = builder.properties.0.into_iter();
+        let mut iter = builder.properties.items.into_iter();
 
         let optional0 = iter.next().expect("builder.properties[0]");
         assert_eq!(optional0.ident, format_ident!("optional0"), "builder.properties[0]");
@@ -837,13 +1008,5 @@ pub mod tests {
         });
 
         assert_eq!(builder.default, Setting::disable(), "builder.default")
-    }
-
-    #[test]
-    fn property_read_path() {
-        let type_ = parse_quote!(MyStruct);
-        let (path, args) = Property::read_path(&type_);
-        assert_eq!(&path, "MyStruct");
-        assert_eq!(args, None);
     }
 }

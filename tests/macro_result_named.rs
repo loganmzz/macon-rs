@@ -8,10 +8,10 @@ use std::path::PathBuf;
 #[derive(Builder)]
 #[builder(mode=Result)]
 #[derive(PartialEq,Debug)]
-struct Foobar(
-    PathBuf,
-    PathBuf,
-);
+struct Foobar {
+    path1: PathBuf,
+    path2: PathBuf,
+}
 
 // #############################################################################
 // ################################### TESTS ###################################
@@ -20,14 +20,14 @@ struct Foobar(
 #[test]
 fn builder_build_full() {
     let built = Foobar::builder()
-        .set1("/tmp/builder_build.1")
-        .set0("/tmp/builder_build.0")
+        .path1("/tmp/builder_build.001")
+        .path2("/tmp/builder_build.002")
         .build();
     assert_eq!(
-        Ok(Foobar(
-            PathBuf::from("/tmp/builder_build.0"),
-            PathBuf::from("/tmp/builder_build.1"),
-        )),
+        Ok(Foobar {
+            path1: PathBuf::from("/tmp/builder_build.001"),
+            path2: PathBuf::from("/tmp/builder_build.002"),
+        }),
         built,
     );
 }
@@ -35,36 +35,36 @@ fn builder_build_full() {
 #[test]
 fn builder_build_missing() {
     let built = Foobar::builder()
-        .set1("/tmp/builder_build.002")
+        .path2("/tmp/builder_build.002")
         .build();
     assert_eq!(
-        Err(String::from("Field 0 is missing")),
+        Err(String::from("Field path1 is missing")),
         built,
-    )
+    );
 }
 
 #[test]
 fn builder_into_full() {
-    let built: Result<Foobar,_> = Foobar::builder()
-        .set0("/tmp/builder_into.0")
-        .set1("/tmp/builder_into.1")
+    let built = Foobar::builder()
+        .path1("/tmp/builder_into.001")
+        .path2("/tmp/builder_into.002")
         .try_into();
     assert_eq!(
-        Ok(Foobar(
-            PathBuf::from("/tmp/builder_into.0"),
-            PathBuf::from("/tmp/builder_into.1"),
-        )),
+        Ok(Foobar {
+            path1: PathBuf::from("/tmp/builder_into.001"),
+            path2: PathBuf::from("/tmp/builder_into.002"),
+        }),
         built,
     );
 }
 
 #[test]
 fn builder_into_missing() {
-    let built: Result<Foobar,_> = Foobar::builder()
-        .set0("/tmp/builder_into.001")
+    let built: Result<Foobar, _> = Foobar::builder()
+        .path1("/tmp/builder_into.001")
         .try_into();
     assert_eq!(
-        Err(String::from("Field 1 is missing")),
+        Err(String::from("Field path2 is missing")),
         built,
     );
 }

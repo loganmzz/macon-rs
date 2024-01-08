@@ -3,64 +3,43 @@ use macon::Builder;
 // #############################################################################
 // ################################### INPUT ###################################
 // #############################################################################
+use ::std::path::PathBuf;
 
 #[derive(Builder)]
-#[derive(PartialEq,Debug,Default)]
-struct StructUnit;
-
-#[derive(Builder)]
-#[derive(PartialEq,Debug,Default)]
+#[builder(mode=Typestate,)]
+#[derive(PartialEq,Debug,)]
 struct StructNamed {
+    id: i32,
     value: String,
     optional: Option<String>,
+    mandatory: PathBuf,
 }
 
 #[derive(Builder)]
-#[derive(PartialEq,Debug,Default)]
+#[builder(mode=Typestate,)]
+#[derive(PartialEq,Debug,)]
 struct StructTuple(
+    i32,
     String,
     Option<String>,
+    PathBuf,
 );
-
-#[derive(Builder)]
-#[builder(Default,)]
-#[derive(PartialEq,Debug,)]
-struct EnabledDefault {
-    value: String,
-    optional: Option<String>,
-}
-
-impl Default for EnabledDefault {
-    fn default() -> Self {
-        Self {
-            value: String::from("42"),
-            optional: Some(String::from("some")),
-        }
-    }
-}
 
 // #############################################################################
 // ################################### TESTS ###################################
 // #############################################################################
 
 #[test]
-fn unit_build() {
-    let built = StructUnit::builder()
-        .build();
-    assert_eq!(
-        StructUnit,
-        built,
-    );
-}
-
-#[test]
 fn named_build_default_implicit() {
     let built = StructNamed::builder()
+        .mandatory("/dev/null")
         .build();
     assert_eq!(
         StructNamed {
+            id: 0,
             value: String::from(""),
             optional: None,
+            mandatory: PathBuf::from("/dev/null"),
         },
         built,
     )
@@ -69,13 +48,17 @@ fn named_build_default_implicit() {
 #[test]
 fn named_build_default_explicit() {
     let built = StructNamed::builder()
-        .value_keep()
-        .optional_keep()
+        .id_default()
+        .value_default()
+        .optional_default()
+        .mandatory("/dev/null")
         .build();
     assert_eq!(
         StructNamed {
+            id: 0,
             value: String::from(""),
             optional: None,
+            mandatory: PathBuf::from("/dev/null"),
         },
         built,
     )
@@ -84,13 +67,17 @@ fn named_build_default_explicit() {
 #[test]
 fn named_build_default_explicit_none() {
     let built = StructNamed::builder()
-        .value_keep()
+        .id_default()
+        .value_default()
         .optional_none()
+        .mandatory("/dev/null")
         .build();
     assert_eq!(
         StructNamed {
+            id: 0,
             value: String::from(""),
             optional: None,
+            mandatory: PathBuf::from("/dev/null"),
         },
         built,
     )
@@ -99,13 +86,17 @@ fn named_build_default_explicit_none() {
 #[test]
 fn named_build_full() {
     let built = StructNamed::builder()
+        .id(42)
         .value("any value")
         .optional("optional")
+        .mandatory("/dev/null")
         .build();
     assert_eq!(
         StructNamed {
+            id: 42,
             value: String::from("any value"),
             optional: Some(String::from("optional")),
+            mandatory: PathBuf::from("/dev/null"),
         },
         built,
     )
@@ -114,143 +105,129 @@ fn named_build_full() {
 #[test]
 fn tuple_build_default_implicit() {
     let built = StructTuple::builder()
+        .set3("/dev/null")
         .build();
     assert_eq!(
         StructTuple(
+            0,
             String::from(""),
             None,
+            PathBuf::from("/dev/null"),
         ),
         built,
     )
 }
 
 #[test]
-fn tuple_build_default_explicit_unordered() {
+fn tuple_build_unordered_default_explicit() {
     let built = StructTuple::builder()
-        .set0_keep()
-        .set1_keep()
+        .set0_default()
+        .set1_default()
+        .set2_default()
+        .set3("/dev/null")
         .build();
     assert_eq!(
         StructTuple(
+            0,
             String::from(""),
             None,
+            PathBuf::from("/dev/null"),
         ),
         built,
     )
 }
 
 #[test]
-fn tuple_build_default_explicit_ordered() {
+fn tuple_build_unordered_default_explicit_none() {
     let built = StructTuple::builder()
-        .keep()
-        .keep()
+        .set0_default()
+        .set1_default()
+        .set2_none()
+        .set3("/dev/null")
         .build();
     assert_eq!(
         StructTuple(
+            0,
             String::from(""),
             None,
+            PathBuf::from("/dev/null"),
         ),
         built,
     )
 }
 
 #[test]
-fn tuple_build_default_explicit_none_unordered() {
+fn tuple_build_unordered_full() {
     let built = StructTuple::builder()
-        .set0_keep()
-        .set1_none()
+        .set0(42)
+        .set1("any value")
+        .set2("optional")
+        .set3("/dev/null")
         .build();
     assert_eq!(
         StructTuple(
-            String::from(""),
-            None,
-        ),
-        built,
-    )
-}
-
-#[test]
-fn tuple_build_default_explicit_none_ordered() {
-    let built = StructTuple::builder()
-        .keep()
-        .none()
-        .build();
-    assert_eq!(
-        StructTuple(
-            String::from(""),
-            None,
-        ),
-        built,
-    )
-}
-
-#[test]
-fn tuple_build_full_unordered() {
-    let built = StructTuple::builder()
-        .set0("any value")
-        .set1("optional")
-        .build();
-    assert_eq!(
-        StructTuple(
+            42,
             String::from("any value"),
             Some(String::from("optional")),
+            PathBuf::from("/dev/null"),
         ),
         built,
     )
 }
 
 #[test]
-fn tuple_build_full_ordered() {
+fn tuple_build_ordered_default_explicit() {
     let built = StructTuple::builder()
+        .default()
+        .default()
+        .default()
+        .set("/dev/null")
+        .build();
+    assert_eq!(
+        StructTuple(
+            0,
+            String::from(""),
+            None,
+            PathBuf::from("/dev/null"),
+        ),
+        built,
+    )
+}
+
+#[test]
+fn tuple_build_ordered_default_explicit_none() {
+    let built = StructTuple::builder()
+        .default()
+        .default()
+        .none()
+        .set("/dev/null")
+        .build();
+    assert_eq!(
+        StructTuple(
+            0,
+            String::from(""),
+            None,
+            PathBuf::from("/dev/null"),
+        ),
+        built,
+    )
+}
+
+#[test]
+fn tuple_ordered_build_full() {
+    let built = StructTuple::builder()
+        .set(42)
         .set("any value")
         .set("optional")
+        .set("/dev/null")
         .build();
     assert_eq!(
         StructTuple(
+            42,
             String::from("any value"),
             Some(String::from("optional")),
+            PathBuf::from("/dev/null"),
         ),
-        built,
-    )
-}
-
-#[test]
-fn enabled_build_default() {
-    let built = EnabledDefault::builder()
-        .build();
-    assert_eq!(
-        EnabledDefault {
-            value: String::from("42"),
-            optional: Some(String::from("some")),
-        },
-        built,
-    )
-}
-
-#[test]
-fn enabled_build_partial() {
-    let built = EnabledDefault::builder()
-        .optional("overriden")
-        .build();
-    assert_eq!(
-        EnabledDefault {
-            value: String::from("42"),
-            optional: Some(String::from("overriden")),
-        },
-        built,
-    )
-}
-
-#[test]
-fn enabled_build_option_none() {
-    let built = EnabledDefault::builder()
-        .optional_none()
-        .build();
-    assert_eq!(
-        EnabledDefault {
-            value: String::from("42"),
-            optional: None,
-        },
         built,
     )
 }

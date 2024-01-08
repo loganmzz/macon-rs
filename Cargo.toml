@@ -3,10 +3,12 @@ name = "macon"
 version = "0.3.0"
 edition = "2021"
 
+authors = ["Logan Mzz"]
 license = "MIT OR Apache-2.0"
 description = "Another builder macro-based generator with its own idioms."
 homepage = "https://github.com/loganmzz/macon-rs"
 repository = "https://github.com/loganmzz/macon-rs"
+
 readme = "CRATES_IO.md"
 
 keywords = [
@@ -19,12 +21,35 @@ categories = [
     "rust-patterns",
 ]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[lib]
-proc-macro = true
-
 [dependencies]
+macon_derive = { version = "=0.3.0", path = "macon_derive" }
+macon_api = { version = "=0.3.0", path = "macon_api" }
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--generate-link-to-definition"]
+
+[workspace]
+members = [
+    "macon_derive",
+    "macon_api",
+]
+default-members = [
+    ".",
+    "macon_derive",
+    "macon_api",
+]
+
+[workspace.package]
+version = "0.3.0"
+edition = "2021"
+
+authors = ["Logan Mzz"]
+license = "MIT OR Apache-2.0"
+description = "Another builder macro-based generator with its own idioms."
+homepage = "https://github.com/loganmzz/macon-rs"
+repository = "https://github.com/loganmzz/macon-rs"
+
+[workspace.dependencies]
 proc-macro2 = "1.0.73"
 quote = "1.0.34"
-syn = { version = "2.0.44", features = ["extra-traits"] }
+syn = "2.0.44"

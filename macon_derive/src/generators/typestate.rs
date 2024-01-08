@@ -59,33 +59,25 @@ impl StateGenerator {
         let vis = &self.builder.vis;
         let builder_name = &self.builder.ident;
         let typestate_default = self.properties().typestate_default();
-        let init_fields = self.properties().typestate_init();
-        let optional_typestate = self.properties().typestate_optional_marker();
-        let marker_field = if self.builder.is_tuple {
-            quote!(::core::marker::PhantomData<(#optional_typestate)>,)
-        } else {
-            quote!(__optional_set: ::core::marker::PhantomData<(#optional_typestate)>,)
-        };
-        let group = self.builder.group(quote! {
-            #init_fields
-            #marker_field
-        });
-        let delim = if self.builder.is_tuple {
+        let fields = self.properties().typestate_struct_fields();
+        let delim = if self.properties().is_tuple {
             quote!(;)
         } else {
             quote!()
         };
         quote! {
-            #[derive(Default)]
-            #vis struct #builder_name<#typestate_default>#group #delim
+            #[derive(Default,)]
+            #vis struct #builder_name<#typestate_default>#fields #delim
         }
     }
 
     pub fn impl_builder(&self) -> TokenStream {
+        // let impl_builder_default = self.impl_builder_default();
         let setters = self.properties().to_token(|f| self.impl_builder_setter(f));
         let build = self.impl_builder_build();
         let from_impl = self.impl_builder_from();
         quote! {
+            // #impl_builder_default
             #setters
             #build
             #from_impl
@@ -94,48 +86,51 @@ impl StateGenerator {
 
     pub fn impl_builder_setter(&self, field: &Property) -> TokenStream {
         let builder_name = &self.builder.ident;
-        let ident = &field.ident;
-        let into_type = field.option.value().unwrap_or(&field.ty);
-        let setter = field.setter();
         let impl_state = self.properties().typestate_setter_impl(field);
-        let typevar = field.typevar();
         let struct_state_from = self.properties().typestate_state(field, false, false);
         let struct_state_to = self.properties().typestate_state(field, false, true);
-        let values = self.properties().assign(field, false, false);
-        let marker_field = if self.builder.is_tuple {
-            quote!(::core::default::Default::default(),)
-        } else {
-            quote!(__optional_set: ::core::default::Default::default(),)
+
+        let setter_standard = {
+            let setter_standard = field.setter();
+            let typevar = field.typevar();
+            let ident = &field.ident;
+            let into_type = field.ty_into();
+            let fields_standard = self.properties().typestate_assign(field, Setter::Standard);
+            quote! {
+                pub fn #setter_standard<#typevar: ::core::convert::Into<#into_type>>(self, #ident: #typevar) -> #builder_name<#struct_state_to> {
+                    #builder_name #fields_standard
+                }
+            }
         };
-        let all_values = self.builder.group(quote! {
-            #values
-            #marker_field
-        });
+
         let setter_none = if field.option.is_enabled() {
             let setter_none = field.setter_none();
-            let assign_none = self.properties().assign(field, true, false);
-            let assign_none_all = self.builder.group(quote! {
-                #assign_none
-                #marker_field
-            });
+            let fields_none = self.properties().typestate_assign(field, Setter::None);
             quote! {
                 pub fn #setter_none(self) -> #builder_name<#struct_state_to> {
-                    #builder_name #assign_none_all
+                    #builder_name #fields_none
                 }
             }
         } else {
             quote!()
         };
-        let setter_keep = if field.default.is_enabled() {
+        let setter_keep = if field.struct_default.is_enabled() {
             let setter_keep = field.setter_keep();
-            let assign_keep = self.properties().assign(field, false, true);
-            let assign_keep_all = self.builder.group(quote! {
-                #assign_keep
-                #marker_field
-            });
+            let fields_keep = self.properties().typestate_assign(field, Setter::Keep);
             quote! {
                 pub fn #setter_keep(self) -> #builder_name<#struct_state_to> {
-                    #builder_name #assign_keep_all
+                    #builder_name #fields_keep
+                }
+            }
+        } else {
+            quote!()
+        };
+        let setter_default = if field.default.is_enabled() {
+            let setter_default = field.setter_default();
+            let fields_default = self.properties().typestate_assign(field, Setter::Default);
+            quote! {
+                pub fn #setter_default(self) -> #builder_name<#struct_state_to> {
+                    #builder_name #fields_default
                 }
             }
         } else {
@@ -143,16 +138,26 @@ impl StateGenerator {
         };
         let mut impl_setter = quote! {
             impl<#impl_state> #builder_name<#struct_state_from> {
-                pub fn #setter<#typevar: ::core::convert::Into<#into_type>>(self, #ident: #typevar) -> #builder_name<#struct_state_to> {
-                    #builder_name #all_values
-                }
+                #setter_standard
                 #setter_none
                 #setter_keep
+                #setter_default
             }
         };
         if self.builder.is_tuple {
             let struct_state_from_ordered = self.properties().typestate_state(field, true, false);
             let struct_state_to_ordered = self.properties().typestate_state(field, true, true);
+            let setter_standard_ordered = {
+                let setter_standard = field.setter();
+                let typevar = field.typevar();
+                let ident = &field.ident;
+                let into_type = field.ty_into();
+                quote! {
+                    pub fn set<#typevar: ::core::convert::Into<#into_type>>(self, #ident: #typevar) -> #builder_name<#struct_state_to_ordered> {
+                        self.#setter_standard(#ident)
+                    }
+                }
+            };
             let setter_none_ordered = if field.option.is_enabled() {
                 let setter_none = field.setter_none();
                 quote! {
@@ -163,7 +168,7 @@ impl StateGenerator {
             } else {
                 quote!()
             };
-            let setter_keep_ordered = if field.default.is_enabled() {
+            let setter_keep_ordered = if field.struct_default.is_enabled() {
                 let setter_keep = field.setter_keep();
                 quote! {
                     pub fn keep(self) -> #builder_name<#struct_state_to_ordered> {
@@ -173,15 +178,24 @@ impl StateGenerator {
             } else {
                 quote!()
             };
+            let setter_default_ordered = if field.default.is_enabled() {
+                let setter_default = field.setter_default();
+                quote! {
+                    pub fn default(self) -> #builder_name<#struct_state_to_ordered> {
+                        self.#setter_default()
+                    }
+                }
+            } else {
+                quote!()
+            };
             impl_setter = quote! {
                 #impl_setter
 
                 impl #builder_name<#struct_state_from_ordered> {
-                    pub fn set<#typevar: ::core::convert::Into<#into_type>>(self, #ident: #typevar) -> #builder_name<#struct_state_to_ordered> {
-                        self.#setter(#ident)
-                    }
+                    #setter_standard_ordered
                     #setter_none_ordered
                     #setter_keep_ordered
+                    #setter_default_ordered
                 }
             }
         }
@@ -209,7 +223,7 @@ impl StateGenerator {
 
     pub fn impl_builder_build_from_default(&self) -> TokenStream {
         let target = &self.builder.target;
-        let overrides = self.properties().typestate_build_overrides();
+        let overrides = self.properties().typestate_override();
         quote! {
             let mut built = <#target as ::core::default::Default>::default();
             #overrides
@@ -219,7 +233,7 @@ impl StateGenerator {
 
     pub fn impl_builder_build_from_scratch(&self) -> TokenStream {
         let target = &self.builder.target;
-        let assign = self.builder.group(self.properties().typestate_build());
+        let assign = self.properties().typestate_build();
         quote! {
             #target #assign
         }
