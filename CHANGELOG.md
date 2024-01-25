@@ -2,10 +2,7 @@
 
 Source: https://keepachangelog.com/
 
-## 0.3.0
-
-* **Crate**: https://crates.io/crates/macon/0.3.0
-* **Documentation**: https://docs.rs/macon/0.3.0/macon/
+## [Unreleased]
 
 ### Added
 
@@ -21,7 +18,7 @@ Source: https://keepachangelog.com/
 - [`Option`](https://doc.rust-lang.org/core/option/enum.Option.html) fields are not mandatory anymore
 - [`Option`](https://doc.rust-lang.org/core/option/enum.Option.html) field setters used wrapped type
 
-## 0.2.0
+## [0.2.0] - 2023-12-11
 
 * **Crate**: https://crates.io/crates/macon/0.2.0
 * **Documentation**: https://docs.rs/macon/0.2.0/macon/

@@ -30,6 +30,7 @@ rustdoc-args = ["--generate-link-to-definition"]
 
 [workspace]
 members = [
+    "macon_tools",
     "macon_derive",
     "macon_api",
 ]
