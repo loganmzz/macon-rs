@@ -573,22 +573,22 @@
 //! ```
 //!
 //!
-//! [tests]: https://github.com/loganmzz/macon-rs/tree/main/tests
-//! [blueprint_panic_default_field.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_default_field.rs
-//! [blueprint_panic_default_struct.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_default_struct.rs
-//! [blueprint_panic_named.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_named.rs
-//! [blueprint_panic_option.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_option.rs
-//! [blueprint_panic_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_panic_tuple.rs
-//! [blueprint_result_default_field.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_default_field.rs
-//! [blueprint_result_default_struct.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_default_struct.rs
-//! [blueprint_result_named.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_named.rs
-//! [blueprint_result_option.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_option.rs
-//! [blueprint_result_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_result_tuple.rs
-//! [blueprint_typestate_default_field.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_default_field.rs
-//! [blueprint_typestate_default_struct.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_default_struct.rs
-//! [blueprint_typestate_named.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_named.rs
-//! [blueprint_typestate_option.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_option.rs
-//! [blueprint_typestate_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/main/tests/blueprint_typestate_tuple.rs
+//! [tests]: https://github.com/loganmzz/macon-rs/tree/0.3.0/tests
+//! [blueprint_panic_default_field.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_panic_default_field.rs
+//! [blueprint_panic_default_struct.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_panic_default_struct.rs
+//! [blueprint_panic_named.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_panic_named.rs
+//! [blueprint_panic_option.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_panic_option.rs
+//! [blueprint_panic_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_panic_tuple.rs
+//! [blueprint_result_default_field.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_result_default_field.rs
+//! [blueprint_result_default_struct.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_result_default_struct.rs
+//! [blueprint_result_named.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_result_named.rs
+//! [blueprint_result_option.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_result_option.rs
+//! [blueprint_result_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_result_tuple.rs
+//! [blueprint_typestate_default_field.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_typestate_default_field.rs
+//! [blueprint_typestate_default_struct.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_typestate_default_struct.rs
+//! [blueprint_typestate_named.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_typestate_named.rs
+//! [blueprint_typestate_option.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_typestate_option.rs
+//! [blueprint_typestate_tuple.rs]: https://github.com/loganmzz/macon-rs/blob/0.3.0/tests/blueprint_typestate_tuple.rs
 //!
 
 pub use ::macon_derive::*;
