@@ -4,6 +4,11 @@ Source: https://keepachangelog.com/
 
 ## [Unreleased]
 
+## [1.0.0] - 2024-02-02
+
+* **Crate**: https://crates.io/crates/macon/1.0.0
+* **Documentation**: https://docs.rs/macon/1.0.0/macon/
+
 ### Added
 
 - Tuple support (#4)
