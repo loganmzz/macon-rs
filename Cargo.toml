@@ -33,6 +33,7 @@ members = [
     "macon_tools",
     "macon_derive",
     "macon_api",
+    "macon_examples",
 ]
 default-members = [
     ".",
@@ -51,6 +52,9 @@ homepage = "https://github.com/loganmzz/macon-rs"
 repository = "https://github.com/loganmzz/macon-rs"
 
 [workspace.dependencies]
-proc-macro2 = "1.0.73"
+anyhow = "1.0.81"
+proc-macro2 = "1.0.79"
 quote = "1.0.34"
+serde = "1.0.197"
+serde_yaml = "0.9.33"
 syn = "2.0.44"

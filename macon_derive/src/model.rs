@@ -361,7 +361,7 @@ impl Builder {
 
 impl Property {
     pub fn from_field(builder: &Builder, is_tuple: bool, ordinal: usize, field: Field) -> Result<Self> {
-        let ident = field.ident.unwrap_or_else(|| format_ident!("v{}", ordinal));
+        let ident = field.ident.clone().unwrap_or_else(|| format_ident!("v{}", ordinal));
         let name = ident.to_string();
         let mut settings = PropertySettings::default();
         if !builder.option {
@@ -424,12 +424,15 @@ impl Property {
                 })?;
             }
         if settings.option.is_undefined() {
-            if let Some(ty) = Self::get_option_arg(&field.ty) {
+            if let Some(ty) = Self::get_option_arg(&field.ty)? {
                 settings.option = Setting::enable(ty.clone());
             }
         }
         if settings.default.is_undefined() {
-            let default_types = crate::config::get().default_types();
+            let default_types = match crate::config::get() {
+                Ok(config) => config.default_types(),
+                Err(err) => return Err(Error::new_spanned(&field, err)),
+            };
             if default_types.match_type(&field.ty) {
                 settings.default = Setting::Enabled(());
             }
@@ -446,8 +449,12 @@ impl Property {
         })
     }
 
-    pub fn get_option_arg(ty: &Type) -> Option<&Type> {
-        if crate::config::get().option_types().match_type(ty) {
+    pub fn get_option_arg(ty: &Type) -> Result<Option<&Type>> {
+        let config = match crate::config::get() {
+            Ok(config) => config,
+            Err(error) => return Err(Error::new_spanned(ty, error)),
+        };
+        Ok(if config.option_types().match_type(ty) {
             match ty {
                 Type::Path(typepath) => typepath
                     .path
@@ -470,7 +477,7 @@ impl Property {
             }
         } else {
             None
-        }
+        })
     }
 
     pub fn id(&self) -> TokenStream {

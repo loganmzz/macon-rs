@@ -61,6 +61,58 @@ Disable automatic [`Default`][Default] detection for given field. See ["`Default
 * **`Default`** <br/>
 Enforce [`Default`][Default] support for given field. See ["`Default` fields"](#default-fields).
 
+#### Configuration
+
+Some additional configuration can be passed by adding a `macon-config.yaml` at crate root (also supports extesions `.yml` and `.json`).
+
+Content example:
+
+```yaml
+version: "1" # Ignored
+
+default_types:
+  defaults: true
+  includes:
+  - my_crate::a_module::Foobar
+  excludes:
+  - usize
+
+option_types:
+  defaults: true
+  includes:
+  - my_crate::a_module::MyOption
+  excludes:
+  - core::option::Option
+```
+
+Syntax description (all keys are optionals):
+
+* **`version`** <br/>
+Define configuration syntax version. Currently ignored.
+
+* **`default_types`** <br/>
+Configure automatic `Default` types.
+
+* **`default_types.defaults`** <br/>
+Include (or not) default values for `default_types`. Supported values: `true` (_default_) or `false`.
+
+* **`default_types.excludes`** <br/>
+List of pathes (e.g. `std::string::String`) to exclude (even if included). Default to empty.
+
+* **`default_types.includes`** <br/>
+List of pathes (e.g. `my_crate::a_module::Foobar`) to include. Default to empty.
+
+* **`option_types`** <br/>
+Configure automatic `Default` types.
+
+* **`option_types.defaults`** <br/>
+Include (or not) default values for `default_types`. Supported values: `true` (_default_) or `false`.
+
+* **`option_types.excludes`** <br/>
+List of pathes (e.g. `std::string::String`) to exclude (even if included). Default to empty.
+
+* **`option_types.includes`** <br/>
+List of pathes (e.g. `my_crate::a_module::MyOption`) to include. Default to empty.
 
 ### Features
 
