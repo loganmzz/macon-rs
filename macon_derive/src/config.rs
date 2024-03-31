@@ -1,7 +1,13 @@
 use std::{
     collections::HashSet,
-    sync::OnceLock, ops::Deref,
+    fs,
+    env,
+    ops::Deref,
+    path,
+    sync::OnceLock,
 };
+use anyhow::Context;
+use serde::Deserialize;
 use syn::{
     Path,
     Type,
@@ -9,9 +15,23 @@ use syn::{
     TypeReference,
 };
 
-pub fn get() -> &'static Configuration {
-    static CONFIGURATION: OnceLock<Configuration> = OnceLock::new();
-    CONFIGURATION.get_or_init(|| Default::default())
+fn load_crate_config() -> anyhow::Result<Option<CrateConfiguration>> {
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    if let Some(config_path) = ["yaml", "yml", "json"]
+            .into_iter()
+            .map(|ext| path::Path::new(&manifest_dir).join(&format!("macon-config.{}", ext)))
+            .find(|path| path.is_file()) {
+        println!("Load Crate configuration from {:?}", config_path);
+        let config_file = fs::File::open(config_path)?;
+        Ok(Some(serde_yaml::from_reader(config_file)?))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn get() -> &'static anyhow::Result<Configuration> {
+    static CONFIGURATION: OnceLock<anyhow::Result<Configuration>> = OnceLock::new();
+    CONFIGURATION.get_or_init(|| Configuration::load())
 }
 
 #[derive(Debug,)]
@@ -26,6 +46,21 @@ pub struct TypeSet {
 }
 
 impl TypeSet {
+    fn create<F: FnOnce()->TypeSet>(config: TypeSetConfiguration, default_fn: F) -> Self {
+        let mut this = if config.defaults {
+            default_fn()
+        } else {
+            Self::default()
+        };
+        for path in config.includes {
+            this.pathes.insert(path);
+        }
+        for path in config.excludes {
+            this.pathes.remove(&path);
+        }
+        this
+    }
+
     pub fn add_path(mut self, path: &str) -> Self {
         self.pathes.insert(path.to_string());
         if path.contains("::") {
@@ -61,7 +96,32 @@ impl TypeSet {
 
 impl Default for Configuration {
     fn default() -> Self {
-        let default_types = TypeSet::default()
+        let default_types = Configuration::default_default_types();
+        let option_types = Configuration::default_option_types();
+        Self { default_types, option_types, }
+    }
+}
+
+impl Configuration {
+
+    pub fn load() -> anyhow::Result<Self> {
+        let crate_config = load_crate_config()
+            .with_context(|| format!("Unable to load Macon crate configuration"))?;
+        let that = crate_config
+            .map(Self::create)
+            .unwrap_or_default();
+        Ok(that)
+    }
+
+    fn create(crate_config: CrateConfiguration) -> Self {
+        Self {
+            default_types: TypeSet::create(crate_config.default_types, Self::default_default_types),
+            option_types: TypeSet::create(crate_config.option_types, Self::default_option_types),
+        }
+    }
+
+    pub fn default_default_types() -> TypeSet {
+        TypeSet::default()
             .add_path("bool")
             .add_path("char")
             .add_path("f32")
@@ -88,22 +148,56 @@ impl Default for Configuration {
             .add_path("std::collections::hash_map::HashMap")
             .add_path("std::collections::HashSet")
             .add_path("std::collections::hash_set::HashSet")
-        ;
-        let option_types = TypeSet::default()
+    }
+
+    pub fn default_option_types() -> TypeSet {
+        TypeSet::default()
             .add_path("std::option::Option")
             .add_path("core::option::Option")
-        ;
-        Self { default_types, option_types, }
     }
-}
-
-impl Configuration {
 
     pub fn default_types(&self) -> &TypeSet {
         &self.default_types
     }
     pub fn option_types(&self) -> &TypeSet {
         &self.option_types
+    }
+}
+
+#[derive(Deserialize)]
+struct CrateConfiguration {
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub version: String,
+    #[serde(default)]
+    pub default_types: TypeSetConfiguration,
+    #[serde(default)]
+    pub option_types: TypeSetConfiguration,
+}
+
+#[derive(Deserialize)]
+struct TypeSetConfiguration {
+    #[serde(default = "TypeSetConfiguration::default_defaults")]
+    pub defaults: bool,
+    #[serde(default)]
+    pub includes: Vec<String>,
+    #[serde(default)]
+    pub excludes: Vec<String>,
+}
+
+impl TypeSetConfiguration {
+    fn default_defaults() -> bool {
+        true
+    }
+}
+
+impl Default for TypeSetConfiguration {
+    fn default() -> Self {
+        Self {
+            defaults: Self::default_defaults(),
+            includes: Default::default(),
+            excludes: Default::default(),
+        }
     }
 }
 

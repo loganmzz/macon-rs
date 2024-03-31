@@ -11,6 +11,9 @@ Cargo.lock
 # Added by cargo
 /target
 
+# VS Code
+/.vscode
+
 # Custom
 /.vscode
 /tests/demo.rs

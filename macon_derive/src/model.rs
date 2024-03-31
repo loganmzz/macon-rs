@@ -250,7 +250,7 @@ impl Property {
         let option = if builder_attribute.option().is_undefined() {
             if builder.properties.option.is_disabled() {
                 Setting::disable(span)
-            } else if let Some(ty) = Self::get_option_arg(&field.ty) {
+            } else if let Some(ty) = Self::get_option_arg(&field.ty)? {
                 Setting::enable(ty.clone(), span)
             } else {
                 Setting::disable(span)
@@ -262,7 +262,10 @@ impl Property {
             if builder.properties.default.is_disabled() {
                 Setting::disable(span)
             } else {
-                let default_types = crate::config::get().default_types();
+                let default_types = match crate::config::get() {
+                    Ok(config) => config.default_types(),
+                    Err(err) => return Err(Error::new_spanned(&field, err)),
+                };
                 if default_types.match_type(&field.ty) {
                     Setting::enable((), span)
                 } else {
@@ -290,8 +293,12 @@ impl Property {
         })
     }
 
-    pub fn get_option_arg(ty: &Type) -> Option<&Type> {
-        if crate::config::get().option_types().match_type(ty) {
+    pub fn get_option_arg(ty: &Type) -> Result<Option<&Type>> {
+        let config = match crate::config::get() {
+            Ok(config) => config,
+            Err(error) => return Err(Error::new_spanned(ty, error)),
+        };
+        Ok(if config.option_types().match_type(ty) {
             match ty {
                 Type::Path(typepath) => typepath
                     .path
@@ -314,7 +321,7 @@ impl Property {
             }
         } else {
             None
-        }
+        })
     }
 
     pub fn id(&self) -> TokenStream {
