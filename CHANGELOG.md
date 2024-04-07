@@ -4,6 +4,11 @@ Source: https://keepachangelog.com/
 
 ## [Unreleased]
 
+## [1.0.1-beta.0] - 2024-04-07
+
+* **Crate**: https://crates.io/crates/macon/1.0.1-beta.0
+* **Documentation**: https://docs.rs/macon/1.0.1-beta.0/macon/
+
 ### Added
 
 - Support crate configuration (#25)
