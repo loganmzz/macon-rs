@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::HashMap,
     fs,
     env,
     ops::Deref,
@@ -7,7 +7,10 @@ use std::{
     sync::OnceLock,
 };
 use anyhow::Context;
-use serde::Deserialize;
+use serde::{
+    Deserialize,
+    Deserializer,
+};
 use syn::{
     Path,
     Type,
@@ -21,9 +24,13 @@ fn load_crate_config() -> anyhow::Result<Option<CrateConfiguration>> {
             .into_iter()
             .map(|ext| path::Path::new(&manifest_dir).join(&format!("macon-config.{}", ext)))
             .find(|path| path.is_file()) {
-        println!("Load Crate configuration from {:?}", config_path);
+        #[cfg(feature = "debug")]
+        eprintln!("Load Crate configuration from {:?}", config_path);
         let config_file = fs::File::open(config_path)?;
-        Ok(Some(serde_yaml::from_reader(config_file)?))
+        let crate_configuration = serde_yaml::from_reader(config_file)?;
+        #[cfg(feature = "debug")]
+        eprintln!("{:#?}", crate_configuration);
+        Ok(Some(crate_configuration))
     } else {
         Ok(None)
     }
@@ -37,49 +44,65 @@ pub fn get() -> &'static anyhow::Result<Configuration> {
 #[derive(Debug,)]
 pub struct Configuration {
     default_types: TypeSet,
-    option_types: TypeSet,
+    option_types: TypeSet<OptionTypeSetItem>,
 }
 
-#[derive(Debug,Default,)]
-pub struct TypeSet {
-    pathes: HashSet<String>,
+pub trait TypeSetItem {
+    fn path(&self) -> String;
 }
 
-impl TypeSet {
-    fn create<F: FnOnce()->TypeSet>(config: TypeSetConfiguration, default_fn: F) -> Self {
+impl TypeSetItem for String {
+    fn path(&self) -> String {
+        self.clone()
+    }
+}
+
+#[derive(Debug,)]
+pub struct TypeSet<V: TypeSetItem = String> {
+    pathes: HashMap<String,V>,
+}
+
+impl<V: TypeSetItem> Default for TypeSet<V> {
+    fn default() -> Self {
+        Self {
+            pathes: Default::default(),
+        }
+    }
+}
+
+impl<V: TypeSetItem> TypeSet<V> {
+    fn create<DefaultConfigurationFn: FnOnce()->TypeSet<V>>(config: TypeSetConfiguration<V>, default_fn: DefaultConfigurationFn) -> Self {
         let mut this = if config.defaults {
             default_fn()
         } else {
             Self::default()
         };
-        for path in config.includes {
-            this.pathes.insert(path);
+        for item in config.includes {
+            this.insert(item);
         }
         for path in config.excludes {
-            this.pathes.remove(&path);
+            this.remove(&path);
         }
         this
     }
 
-    pub fn add_path(mut self, path: &str) -> Self {
-        self.pathes.insert(path.to_string());
-        if path.contains("::") {
-            if let Some(last_entry) = path.split("::").last() {
-                self.pathes.insert(last_entry.to_string());
-            }
-        }
-        self
+    pub fn insert(&mut self, item: V) {
+        self.pathes.insert(item.path(), item);
     }
 
-    pub fn match_type(&self, ty: &Type) -> bool {
+    pub fn remove(&mut self, path: &str) {
+        self.pathes.remove(path);
+    }
+
+    pub fn match_type(&self, ty: &Type) -> Option<&V> {
         match ty {
             Type::Path(TypePath { qself: None, path }) => self.match_path(path),
             Type::Reference(TypeReference { elem, ..}) => self.match_type(elem.deref()),
-            _ => false,
+            _ => None,
         }
     }
 
-    pub fn match_path(&self, path: &Path) -> bool {
+    pub fn match_path(&self, path: &Path) -> Option<&V> {
         let str = path
             .segments
             .iter()
@@ -89,8 +112,20 @@ impl TypeSet {
         self.match_str(&str)
     }
 
-    pub fn match_str(&self, str: &str) -> bool {
-        self.pathes.contains(str)
+    pub fn match_str(&self, str: &str) -> Option<&V> {
+        self.pathes.get(str)
+    }
+}
+
+impl<'a, V: From<&'a str> + TypeSetItem> TypeSet<V> {
+    fn add_path(mut self, path: &'a str) -> Self {
+        self.insert(path.into());
+        if path.contains("::") {
+            if let Some(last_entry) = path.split("::").last() {
+                self.insert(last_entry.into());
+            }
+        }
+        self
     }
 }
 
@@ -114,10 +149,22 @@ impl Configuration {
     }
 
     fn create(crate_config: CrateConfiguration) -> Self {
-        Self {
-            default_types: TypeSet::create(crate_config.default_types, Self::default_default_types),
-            option_types: TypeSet::create(crate_config.option_types, Self::default_option_types),
-        }
+        let default_types = TypeSet::create(
+            crate_config.default_types,
+            Self::default_default_types,
+        );
+        let option_types = TypeSet::create(
+            crate_config.option_types.map_includes(|i| i.into()),
+            Self::default_option_types,
+        );
+
+        let this = Self {
+            default_types,
+            option_types,
+        };
+        #[cfg(feature = "debug")]
+        eprintln!("Merge configuration\n{:#?}", this);
+        this
     }
 
     pub fn default_default_types() -> TypeSet {
@@ -150,7 +197,7 @@ impl Configuration {
             .add_path("std::collections::hash_set::HashSet")
     }
 
-    pub fn default_option_types() -> TypeSet {
+    pub fn default_option_types() -> TypeSet<OptionTypeSetItem> {
         TypeSet::default()
             .add_path("std::option::Option")
             .add_path("core::option::Option")
@@ -159,46 +206,109 @@ impl Configuration {
     pub fn default_types(&self) -> &TypeSet {
         &self.default_types
     }
-    pub fn option_types(&self) -> &TypeSet {
+    pub fn option_types(&self) -> &TypeSet<OptionTypeSetItem> {
         &self.option_types
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug,Deserialize,)]
 struct CrateConfiguration {
     #[serde(default)]
     #[allow(dead_code)]
     pub version: String,
     #[serde(default)]
-    pub default_types: TypeSetConfiguration,
-    #[serde(default)]
-    pub option_types: TypeSetConfiguration,
+    pub default_types: TypeSetConfiguration<String>,
+    #[serde(default = "default_typesetconfiguration", deserialize_with="deserialize_crateconfiguration_option_types")]
+    pub option_types: TypeSetConfiguration<OptionTypeSetItem>,
 }
 
-#[derive(Deserialize)]
-struct TypeSetConfiguration {
-    #[serde(default = "TypeSetConfiguration::default_defaults")]
+fn deserialize_crateconfiguration_option_types<'de, D>(deserializer: D) -> std::result::Result<TypeSetConfiguration<OptionTypeSetItem>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let decoded: TypeSetConfiguration<OptionTypeSetItemConfiguration> = Deserialize::deserialize(deserializer)?;
+    Ok(decoded.map_includes(OptionTypeSetItem::from))
+}
+
+#[derive(Debug,Default,Deserialize,PartialEq,)]
+pub struct OptionTypeSetItem {
+    pub path: String,
+    pub wrapped: Option<String>,
+}
+
+impl TypeSetItem for OptionTypeSetItem {
+    fn path(&self) -> String {
+        self.path.clone()
+    }
+}
+
+impl From<&str> for OptionTypeSetItem {
+    fn from(path: &str) -> Self {
+        Self {
+            path: path.to_owned(),
+            wrapped: None,
+        }
+    }
+}
+
+#[derive(Debug,Deserialize,PartialEq,)]
+#[serde(untagged)]
+pub enum OptionTypeSetItemConfiguration {
+    String(String),
+    Item(OptionTypeSetItem),
+}
+
+impl Default for OptionTypeSetItemConfiguration {
+    fn default() -> Self {
+        OptionTypeSetItemConfiguration::String("".to_owned())
+    }
+}
+
+impl From<OptionTypeSetItemConfiguration> for OptionTypeSetItem {
+    fn from(value: OptionTypeSetItemConfiguration) -> Self {
+        match value {
+            OptionTypeSetItemConfiguration::String(string) => string.as_str().into(),
+            OptionTypeSetItemConfiguration::Item(item) => item,
+        }
+    }
+}
+
+#[derive(Debug,Deserialize)]
+struct TypeSetConfiguration<V> {
+    #[serde(default = "bool_true")]
     pub defaults: bool,
     #[serde(default)]
-    pub includes: Vec<String>,
+    pub includes: Vec<V>,
     #[serde(default)]
     pub excludes: Vec<String>,
 }
 
-impl TypeSetConfiguration {
-    fn default_defaults() -> bool {
-        true
-    }
-}
-
-impl Default for TypeSetConfiguration {
+impl<V> Default for TypeSetConfiguration<V> {
     fn default() -> Self {
         Self {
-            defaults: Self::default_defaults(),
+            defaults: bool_true(),
             includes: Default::default(),
             excludes: Default::default(),
         }
     }
+}
+
+impl<V> TypeSetConfiguration<V> {
+    fn map_includes<T, MAP: FnMut(V)->T>(self, map: MAP) -> TypeSetConfiguration<T> {
+        TypeSetConfiguration {
+            defaults: self.defaults,
+            includes: self.includes.into_iter().map(map).collect(),
+            excludes: self.excludes.clone(),
+        }
+    }
+}
+
+fn default_typesetconfiguration<V>() -> TypeSetConfiguration<V>{
+    TypeSetConfiguration::<V>::default()
+}
+
+fn bool_true() -> bool {
+    true
 }
 
 #[cfg(test)]
@@ -207,13 +317,13 @@ mod tests {
         Type,
         parse_quote,
     };
-    use super::Configuration;
+    use super::*;
 
     macro_rules! assert_defaults {
         (!$($tt:tt)*) => {{
             let ty: Type = parse_quote!($($tt)*);
             assert!(
-                !Configuration::default().default_types().match_type(&ty),
+                Configuration::default().default_types().match_type(&ty).is_none(),
                 "Default type: {:?}",
                 stringify!($($tt)*)
             );
@@ -221,7 +331,7 @@ mod tests {
         ($($tt:tt)*) => {{
             let ty: Type = parse_quote!($($tt)*);
             assert!(
-                Configuration::default().default_types().match_type(&ty),
+                Configuration::default().default_types().match_type(&ty).is_some(),
                 "Not default type: {:?}",
                 stringify!($($tt)*)
             );
@@ -267,5 +377,59 @@ mod tests {
     #[test]
     fn default_types_random() {
         assert_defaults!(!Random)
+    }
+
+    #[test]
+    fn crate_config_parse() {
+        let config: CrateConfiguration = serde_yaml::from_str(include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/config/macon-config-parse.yaml"))).unwrap();
+
+        assert_eq!(config.version, "1", "version\n{:#?}", config);
+
+        let default_types = &config.default_types;
+        assert_eq!(default_types.defaults, true, "default_types.defaults\n{:#?}", config);
+
+        let mut default_types_includes = default_types.includes.iter();
+        assert_eq!(default_types_includes.next(), Some(&"DefaultOne".to_owned()), "default_types.includes[0]\n{:#?}", config);
+        assert_eq!(default_types_includes.next(), Some(&"::full::path::DefaultTwo".to_owned()), "default_types.includes[1]\n{:#?}", config);
+        assert_eq!(default_types_includes.next(), None, "default_types.includes[2]\n{:#?}", config);
+
+        let mut default_types_excludes = default_types.excludes.iter();
+        assert_eq!(default_types_excludes.next(), None, "default_types.excludes[0]\n{:#?}", config);
+
+        let option_types = &config.option_types;
+        assert_eq!(option_types.defaults, true, "option_types.defaults");
+
+        let mut option_types_includes = option_types.includes.iter();
+        assert_eq!(
+            option_types_includes.next(),
+            Some(&OptionTypeSetItem {
+                path: "AsString".to_owned(),
+                wrapped: None,
+            }),
+            "option_types.includes[0]\n{:#?}", config
+        );
+
+        assert_eq!(
+            option_types_includes.next(),
+            Some(&OptionTypeSetItem { path: "AsItemWithoutWrapped".to_owned(), wrapped: None, }),
+            "option_types.includes[1]\n{:#?}", config
+        );
+
+        assert_eq!(
+            option_types_includes.next(),
+            Some(&OptionTypeSetItem { path: "AsItemWithShortWrapped".to_owned(), wrapped: Some("ShortWrapped".to_string()), }),
+            "option_types.includes[2]\n{:#?}", config
+        );
+
+        assert_eq!(
+            option_types_includes.next(),
+            Some(&OptionTypeSetItem { path: "AsItemWithFullWrapped".to_owned(), wrapped: Some("::full::path::FullWrapped".to_string()), }),
+            "option_types.includes[3]\n{:#?}", config
+        );
+
+        assert!(option_types_includes.next().is_none(), "option_types.includes[4]\n{:#?}", config);
+
+        let mut option_types_excludes = option_types.excludes.iter();
+        assert_eq!(option_types_excludes.next(), None, "option_types.excludes[0]\n{:#?}", config);
     }
 }

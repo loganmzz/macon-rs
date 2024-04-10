@@ -63,7 +63,7 @@
 //!
 //! #### Configuration
 //!
-//! Some additional configuration can be passed by adding a `macon-config.yaml` at crate root (also supports extesions `.yml` and `.json`).
+//! Some additional configuration can be passed by adding a `macon-config.yaml` at crate root (also supports `.yml` and `.json` extesions).
 //!
 //! Content example:
 //!
@@ -82,7 +82,9 @@
 //! option_types:
 //!   defaults: true
 //!   includes:
-//!   - my_crate::a_module::MyOption
+//!   - my_crate::a_module::MyOption    # Must have a generic parameter
+//!   - path: Flag                      # An alias for Option<bool>
+//!     wrapped: bool
 //!   excludes:
 //!   - core::option::Option
 //! ```
@@ -114,7 +116,13 @@
 //! List of pathes (e.g. `std::string::String`) to exclude (even if included). Default to empty.
 //!
 //! * **`option_types.includes`** <br/>
-//! List of pathes (e.g. `my_crate::a_module::MyOption`) to include. Default to empty.
+//! List of pathes (e.g. `my_crate::a_module::MyOption`) as `String` or structured type. Default to empty.
+//!
+//! * **`option_types.includes.path`** <br/>
+//! Path that should be considered as an `Option`. Mandatory.
+//!
+//! * **`option_types.includes.wrapped`** <br/>
+//! Path of wrapped type. Optional, use first type argument if missing.
 //!
 //! ### Features
 //!
