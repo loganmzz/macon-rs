@@ -1,8 +1,11 @@
+pub type Flag = Option<bool>;
+
 #[derive(macon::Builder, Default)]
 pub struct Person {
     pub given_name: String,
     pub family_name: String,
     pub address: Address,
+    pub married: Flag,
 }
 
 #[derive(macon::Builder, Default)]

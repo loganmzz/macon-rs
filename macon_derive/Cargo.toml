@@ -24,3 +24,4 @@ syn = { workspace = true, features = ["extra-traits",] }
 
 [dev-dependencies]
 macon_api = { path = "../macon_api" }
+assert_matches = { workspace = true }

@@ -81,6 +81,8 @@ option_types:
   defaults: true
   includes:
   - my_crate::a_module::MyOption
+  - path: Flag
+    wrapped: bool
   excludes:
   - core::option::Option
 ```
@@ -112,7 +114,13 @@ Include (or not) default values for `default_types`. Supported values: `true` (_
 List of pathes (e.g. `std::string::String`) to exclude (even if included). Default to empty.
 
 * **`option_types.includes`** <br/>
-List of pathes (e.g. `my_crate::a_module::MyOption`) to include. Default to empty.
+List of pathes (e.g. `my_crate::a_module::MyOption`) as `String` or structured type. Default to empty.
+
+* **`option_types.includes.path`** <br/>
+Path that should be considered as an `Option`. Mandatory.
+
+* **`option_types.includes.wrapped`** <br/>
+Path of wrapped type. Optional, use first type argument if missing.
 
 ### Features
 

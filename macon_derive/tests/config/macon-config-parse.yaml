@@ -1,0 +1,15 @@
+version: "1"
+
+default_types:
+  includes:
+  - DefaultOne
+  - ::full::path::DefaultTwo
+
+option_types:
+  includes:
+  - AsString
+  - path: AsItemWithoutWrapped
+  - path: AsItemWithShortWrapped
+    wrapped: ShortWrapped
+  - path: AsItemWithFullWrapped
+    wrapped: ::full::path::FullWrapped

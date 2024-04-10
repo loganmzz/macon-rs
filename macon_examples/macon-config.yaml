@@ -2,3 +2,9 @@ default_types:
   includes:
   - Person
   - Address
+  - Flag
+
+option_types:
+  includes:
+  - path: Flag
+    wrapped: bool
