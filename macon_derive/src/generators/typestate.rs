@@ -8,20 +8,6 @@ pub struct StateGenerator {
     builder: crate::model::Builder,
 }
 
-struct OutputProperty<'a>(&'a Property);
-struct OutputProperties<'a>(Vec<OutputProperty<'a>>);
-
-impl<'a> From<&'a Property> for OutputProperty<'a> {
-    fn from(value: &'a Property) -> Self {
-        Self(value)
-    }
-}
-impl<'a> From<&'a Builder> for OutputProperties<'a> {
-    fn from(value: &'a Builder) -> Self {
-        Self(value.properties.iter().map(|p| p.into()).collect())
-    }
-}
-
 impl StateGenerator {
     pub fn new(builder: Builder) -> Self {
         Self {

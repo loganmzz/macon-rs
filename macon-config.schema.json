@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/loganmzz/macon-rs/schemas/macon-config.json",
+  "title": "Macon-rs configuration file",
+  "description": "Configuration file to override Macon defaults",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": "1"
+    },
+    "default_types": {
+      "description": "Override pathes that should implement Default",
+      "type": "object",
+      "properties": {
+        "includes": {
+          "description": "Pathes that should implement Default",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "option_types": {
+      "description": "Override pathes that should implement Option",
+      "type": "object",
+      "properties": {
+        "includes": {
+          "description": "Pathes that should implement Option",
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "description": "Path that should implement Option",
+                "type": "string"
+              },
+              {
+                "description": "Path and associated wrapped type",
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "description": "Path that should implement Option",
+                    "type": "string"
+                  },
+                  "wrapped": {
+                    "description": "Optional type",
+                    "type": "string"
+                  },
+                  "required": [
+                    "path"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

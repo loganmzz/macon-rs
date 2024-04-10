@@ -232,6 +232,8 @@ impl Builder {
             this.with_attribute(attr)?;
         }
         this.with_data(derive.data)?;
+        #[cfg(feature = "debug")]
+        eprintln!("Builder:\n{:#?}", this);
         Ok(this)
     }
 
@@ -425,7 +427,9 @@ impl Property {
             }
         if settings.option.is_undefined() {
             if let Some(ty) = Self::get_option_arg(&field.ty)? {
-                settings.option = Setting::enable(ty.clone());
+                #[cfg(feature = "debug")]
+                eprintln!("{}.{}: Option<{}>", builder.ident, name, ty.to_token_stream());
+                settings.option = Setting::enable(ty);
             }
         }
         if settings.default.is_undefined() {
@@ -433,7 +437,7 @@ impl Property {
                 Ok(config) => config.default_types(),
                 Err(err) => return Err(Error::new_spanned(&field, err)),
             };
-            if default_types.match_type(&field.ty) {
+            if let Some(_) = default_types.match_type(&field.ty) {
                 settings.default = Setting::Enabled(());
             }
         }
@@ -449,31 +453,36 @@ impl Property {
         })
     }
 
-    pub fn get_option_arg(ty: &Type) -> Result<Option<&Type>> {
+    pub fn get_option_arg(ty: &Type) -> Result<Option<Type>> {
         let config = match crate::config::get() {
             Ok(config) => config,
             Err(error) => return Err(Error::new_spanned(ty, error)),
         };
-        Ok(if config.option_types().match_type(ty) {
-            match ty {
-                Type::Path(typepath) => typepath
-                    .path
-                    .segments
-                    .last()
-                    .and_then(|path_segment| match path_segment.arguments {
-                        PathArguments::AngleBracketed(ref args) => Some(args),
-                        _ => None,
-                    })
-                    .and_then(|args| if args.args.len() == 1 {
-                        if let Some(GenericArgument::Type(ty)) = args.args.first() {
-                            Some(ty)
+        Ok(if let Some(item) = config.option_types().match_type(ty) {
+            if let Some(ref wrapped) = item.wrapped {
+                let ty: Type = syn::parse_str(wrapped)?;
+                Some(ty)
+            } else {
+                match ty {
+                    Type::Path(typepath) => typepath
+                        .path
+                        .segments
+                        .last()
+                        .and_then(|path_segment| match path_segment.arguments {
+                            PathArguments::AngleBracketed(ref args) => Some(args),
+                            _ => None,
+                        })
+                        .and_then(|args| if args.args.len() == 1 {
+                            if let Some(GenericArgument::Type(ty)) = args.args.first() {
+                                Some(ty.to_owned())
+                            } else {
+                                None
+                            }
                         } else {
                             None
-                        }
-                    } else {
-                        None
-                    }),
-                _ => None,
+                        }),
+                    _ => None,
+                }
             }
         } else {
             None
