@@ -13,3 +13,12 @@ option_types:
     wrapped: ShortWrapped
   - path: AsItemWithFullWrapped
     wrapped: ::full::path::FullWrapped
+
+extend_types:
+  includes:
+  - AsString
+  - path: AsItemWithoutWrapped
+  - path: AsItemWithShortWrapped
+    wrapped: ShortWrapped
+  - path: AsItemWithFullWrapped
+    wrapped: ::full::path::FullWrapped
