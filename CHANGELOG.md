@@ -4,6 +4,11 @@ Source: https://keepachangelog.com/
 
 ## [Unreleased]
 
+## [1.0.1-beta.1] - 2024-07-14
+
+* **Crate**: https://crates.io/crates/macon/1.0.1-beta.1
+* **Documentation**: https://docs.rs/macon/1.0.1-beta.1/macon/
+
 ### Added
 
 - Support configuration of Optional types (#27)
