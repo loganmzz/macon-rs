@@ -1,4 +1,8 @@
-//! Generator panicing on missing fields and ignore setting many times.
+//! Generator panicing on missing fields and ignore setting same field many times.
+
+use quote::format_ident;
+
+use crate::model::Setting;
 
 use super::*;
 
@@ -102,11 +106,25 @@ impl ResultPanicGenerator {
             } else {
                 quote!()
             };
+            let setter_extend = if let Setting::Enabled(ref itemtype) = f.extend {
+                let setter_extend = f.setter_extend();
+                let itemvar = format_ident!("{}ITEM", typevar);
+                let field = f.id();
+                quote! {
+                    pub fn #setter_extend<#itemvar: ::core::convert::Into<#itemtype>, #typevar: ::std::iter::IntoIterator<Item = LISTITEM>>(mut self, #ident: #typevar) -> Self {
+                        self.#field.extend(::core::iter::IntoIterator::into_iter(#ident).map(::core::convert::Into::into));
+                        self
+                    }
+                }
+            } else {
+                quote!()
+            };
             quote! {
                 #setter_standard
                 #setter_none
                 #setter_keep
                 #setter_default
+                #setter_extend
             }
         })
     }

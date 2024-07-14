@@ -1,4 +1,7 @@
-use std::borrow::Cow;
+use std::{
+    borrow::Cow,
+    fmt::Debug,
+};
 use proc_macro2::{
     Delimiter,
     Group,
@@ -7,7 +10,8 @@ use proc_macro2::{
 };
 use quote::{
     format_ident,
-    quote, ToTokens,
+    quote,
+    ToTokens,
 };
 use syn::{
     Attribute,
@@ -26,6 +30,8 @@ use syn::{
     Type,
     Visibility,
 };
+
+use crate::common::{MType, TokenDisplay};
 
 #[derive(Debug)]
 pub struct Builder {
@@ -133,8 +139,9 @@ impl<T> From<T> for Setting<T> {
 
 #[derive(Debug,Default)]
 pub struct PropertySettings {
-    pub option: Setting<Type>,
+    pub option: Setting<MType>,
     pub default: Setting<()>,
+    pub extend: Setting<MType>,
 }
 
 #[derive(Debug,Default,)]
@@ -169,9 +176,10 @@ pub struct Property {
     pub ordinal: usize,
     pub name: String,
     pub ident: Ident,
-    pub ty: Type,
+    pub ty: TokenDisplay<Type>,
     pub is_tuple: bool,
-    pub option: Setting<Type>,
+    pub option: Setting<TokenDisplay<Type>>,
+    pub extend: Setting<TokenDisplay<Type>>,
     pub default: Setting<()>,
     pub struct_default: Setting<()>,
 }
@@ -391,13 +399,13 @@ impl Property {
                         settings.option = match type_ {
                             Type::Tuple(ref typetuple) => {
                                 if typetuple.elems.is_empty() {
-                                    Setting::enable(type_)
+                                    Setting::enable(type_.into())
                                 } else {
                                     Setting::disable()
                                 }
                             },
                             Type::Never(_) => Setting::disable(),
-                            _ => Setting::enable(type_),
+                            _ => Setting::enable(type_.into()),
                         };
                     } else if nested.path.is_ident("Default") {
                         if settings.default.is_defined() {
@@ -429,7 +437,14 @@ impl Property {
             if let Some(ty) = Self::get_option_arg(&field.ty)? {
                 #[cfg(feature = "debug")]
                 eprintln!("{}.{}: Option<{}>", builder.ident, name, ty.to_token_stream());
-                settings.option = Setting::enable(ty);
+                settings.option = Setting::enable(ty.into());
+            }
+        }
+        if settings.extend.is_undefined() {
+            if let Some(ty) = Self::get_extend_arg(&field.ty)? {
+                #[cfg(feature = "debug")]
+                eprintln!("{}.{}: Extend<{}>", builder.ident, name, ty.to_token_stream());
+                settings.extend = Setting::enable(ty.into());
             }
         }
         if settings.default.is_undefined() {
@@ -445,9 +460,10 @@ impl Property {
             ordinal,
             name,
             ident,
-            ty: field.ty,
+            ty: field.ty.into(),
             is_tuple,
-            option: settings.option,
+            option: settings.option.into(),
+            extend: settings.extend.into(),
             default: settings.default,
             struct_default: builder.default.clone(),
         })
@@ -459,6 +475,43 @@ impl Property {
             Err(error) => return Err(Error::new_spanned(ty, error)),
         };
         Ok(if let Some(item) = config.option_types().match_type(ty) {
+            if let Some(ref wrapped) = item.wrapped {
+                let ty: Type = syn::parse_str(wrapped)?;
+                Some(ty)
+            } else {
+                match ty {
+                    Type::Path(typepath) => typepath
+                        .path
+                        .segments
+                        .last()
+                        .and_then(|path_segment| match path_segment.arguments {
+                            PathArguments::AngleBracketed(ref args) => Some(args),
+                            _ => None,
+                        })
+                        .and_then(|args| if args.args.len() == 1 {
+                            if let Some(GenericArgument::Type(ty)) = args.args.first() {
+                                Some(ty.to_owned())
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }),
+                    _ => None,
+                }
+            }
+        } else {
+            None
+        })
+    }
+
+    pub fn get_extend_arg(ty: &Type) -> Result<Option<Type>> {
+        let config = match crate::config::get() {
+            Ok(config) => config,
+            Err(error) => return Err(Error::new_spanned(ty, error)),
+        };
+
+        Ok(if let Some(item) = config.extend_types().match_type(ty) {
             if let Some(ref wrapped) = item.wrapped {
                 let ty: Type = syn::parse_str(wrapped)?;
                 Some(ty)
@@ -527,6 +580,10 @@ impl Property {
         format_ident!("{}_default", self.setter())
     }
 
+    pub fn setter_extend(&self) -> Ident {
+        format_ident!("{}_extend", self.setter())
+    }
+
     pub fn prefix(&self) -> TokenStream {
         if self.is_tuple {
             quote!()
@@ -536,6 +593,7 @@ impl Property {
         }
     }
 
+    /// Not option, field default or struct default.
     pub fn is_required(&self) -> bool {
         ! self.option.is_enabled() &&
         ! self.default.is_enabled() &&
@@ -704,15 +762,23 @@ impl Property {
         } else {
             ty = quote!(::macon::Building<#ty>);
         }
+        if let Setting::Enabled(ref itemty) = self.extend {
+            ty = quote!(::macon::Extending<#ty, #itemty>);
+        }
         quote!(#prefix #ty,)
     }
 
     pub fn result_assign(&self, setter: Setter) -> TokenStream {
         let ident = &self.ident;
         let id = self.id();
+        let source = if let Setting::Enabled(_) = self.extend {
+            quote!(*self.#id.value_mut())
+        } else {
+            quote!(self.#id)
+        };
         let mut value = match setter {
             Setter::Standard => {
-                let mut value = quote!(#ident.into());
+                let mut value = quote!(::core::convert::Into::into(#ident));
                 if self.option.is_enabled() {
                     value = quote!(::core::option::Option::Some(#value));
                 }
@@ -736,37 +802,68 @@ impl Property {
         } else {
             value = quote!(::macon::Building::Set(#value));
         }
-        quote!(self.#id = #value;)
+        quote!(#source = #value;)
+    }
+
+    pub fn result_set_value(&self) -> TokenStream {
+        let id = self.id();
+        let getvalue = self.result_value();
+        if self.extend.is_enabled() {
+            let ident = &self.ident;
+            let identitems = format_ident!("{}items", ident);
+            quote! {
+                {
+                    let (#ident, #identitems) = self.#id.unwrap();
+                    let mut #ident = #ident #getvalue;
+                    #ident.extend(#identitems);
+                    #ident
+                }
+            }
+        } else {
+            quote!(self.#id #getvalue)
+        }
     }
 
     pub fn result_value(&self) -> TokenStream {
-        let id = self.id();
-        let mut value = quote!(self.#id);
         if ! self.is_required() {
+            let mut getvalue = quote!();
             if self.struct_default.is_enabled() {
-                value = quote!(#value.unwrap());
+                getvalue = quote!(#getvalue.unwrap());
             }
             if self.default.is_enabled() {
-                value = quote!(#value.unwrap());
+                getvalue = quote!(#getvalue.unwrap());
             }
+            getvalue
         } else {
-            value = quote!(#value.unwrap());
+            quote!(.unwrap())
         }
-        value
     }
 
     pub fn result_build(&self) -> TokenStream {
         let prefix = self.prefix();
-        let value = self.result_value();
+        let value = self.result_set_value();
         quote!(#prefix #value,)
     }
 
     pub fn result_override(&self) -> TokenStream {
         let id = self.id();
-        let value = self.result_value();
-        quote! {
-            if self.#id.is_set() {
-                built.#id = #value;
+        if ! self.extend.is_enabled() {
+            let value = self.result_set_value();
+            quote! {
+                if self.#id.is_set() {
+                    built.#id = #value;
+                }
+            }
+        } else {
+            let ident = &self.ident;
+            let identitems = format_ident!("{}items", ident);
+            let value = self.result_value();
+            quote! {
+                let (#ident, #identitems) = self.#id.unwrap();
+                if #ident.is_set() {
+                    built.#id = #ident #value;
+                }
+                built.#id.extend(#identitems);
             }
         }
     }
@@ -871,7 +968,6 @@ pub mod tests {
     use super::*;
 
     fn newbuilder(derive: DeriveInput) -> Builder {
-        eprintln!("{:#?}", derive);
         Builder::from_input(derive).expect("Buider::from_input")
     }
 

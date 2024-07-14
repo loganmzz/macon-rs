@@ -44,7 +44,8 @@ pub fn get() -> &'static anyhow::Result<Configuration> {
 #[derive(Debug,)]
 pub struct Configuration {
     default_types: TypeSet,
-    option_types: TypeSet<OptionTypeSetItem>,
+    option_types: TypeSet<ContainerTypeSetItem>,
+    extend_types: TypeSet<ContainerTypeSetItem>,
 }
 
 pub trait TypeSetItem {
@@ -109,6 +110,7 @@ impl<V: TypeSetItem> TypeSet<V> {
             .map(|segment| segment.ident.to_string())
             .collect::<Vec<_>>()
             .join("::");
+
         self.match_str(&str)
     }
 
@@ -133,7 +135,12 @@ impl Default for Configuration {
     fn default() -> Self {
         let default_types = Configuration::default_default_types();
         let option_types = Configuration::default_option_types();
-        Self { default_types, option_types, }
+        let extend_types = Configuration::default_extend_types();
+        Self {
+            default_types,
+            option_types,
+            extend_types,
+        }
     }
 }
 
@@ -157,10 +164,15 @@ impl Configuration {
             crate_config.option_types.map_includes(|i| i.into()),
             Self::default_option_types,
         );
+        let extend_types = TypeSet::create(
+            crate_config.extend_types.map_includes(|i| i.into()),
+            Self::default_extend_types,
+        );
 
         let this = Self {
             default_types,
             option_types,
+            extend_types,
         };
         #[cfg(feature = "debug")]
         eprintln!("Merge configuration\n{:#?}", this);
@@ -197,17 +209,25 @@ impl Configuration {
             .add_path("std::collections::hash_set::HashSet")
     }
 
-    pub fn default_option_types() -> TypeSet<OptionTypeSetItem> {
+    pub fn default_option_types() -> TypeSet<ContainerTypeSetItem> {
         TypeSet::default()
             .add_path("std::option::Option")
             .add_path("core::option::Option")
     }
 
+    pub fn default_extend_types() -> TypeSet<ContainerTypeSetItem> {
+        TypeSet::default()
+            .add_path("std::vec::Vec")
+    }
+
     pub fn default_types(&self) -> &TypeSet {
         &self.default_types
     }
-    pub fn option_types(&self) -> &TypeSet<OptionTypeSetItem> {
+    pub fn option_types(&self) -> &TypeSet<ContainerTypeSetItem> {
         &self.option_types
+    }
+    pub fn extend_types(&self) -> &TypeSet<ContainerTypeSetItem> {
+        &self.extend_types
     }
 }
 
@@ -218,31 +238,33 @@ struct CrateConfiguration {
     pub version: String,
     #[serde(default)]
     pub default_types: TypeSetConfiguration<String>,
-    #[serde(default = "default_typesetconfiguration", deserialize_with="deserialize_crateconfiguration_option_types")]
-    pub option_types: TypeSetConfiguration<OptionTypeSetItem>,
+    #[serde(default = "default_typesetconfiguration", deserialize_with="deserialize_crateconfiguration_container_types")]
+    pub option_types: TypeSetConfiguration<ContainerTypeSetItem>,
+    #[serde(default = "default_typesetconfiguration", deserialize_with="deserialize_crateconfiguration_container_types")]
+    pub extend_types: TypeSetConfiguration<ContainerTypeSetItem>,
 }
 
-fn deserialize_crateconfiguration_option_types<'de, D>(deserializer: D) -> std::result::Result<TypeSetConfiguration<OptionTypeSetItem>, D::Error>
+fn deserialize_crateconfiguration_container_types<'de, D>(deserializer: D) -> std::result::Result<TypeSetConfiguration<ContainerTypeSetItem>, D::Error>
 where
     D: Deserializer<'de>,
 {
     let decoded: TypeSetConfiguration<OptionTypeSetItemConfiguration> = Deserialize::deserialize(deserializer)?;
-    Ok(decoded.map_includes(OptionTypeSetItem::from))
+    Ok(decoded.map_includes(ContainerTypeSetItem::from))
 }
 
 #[derive(Debug,Default,Deserialize,PartialEq,)]
-pub struct OptionTypeSetItem {
+pub struct ContainerTypeSetItem {
     pub path: String,
     pub wrapped: Option<String>,
 }
 
-impl TypeSetItem for OptionTypeSetItem {
+impl TypeSetItem for ContainerTypeSetItem {
     fn path(&self) -> String {
         self.path.clone()
     }
 }
 
-impl From<&str> for OptionTypeSetItem {
+impl From<&str> for ContainerTypeSetItem {
     fn from(path: &str) -> Self {
         Self {
             path: path.to_owned(),
@@ -255,7 +277,7 @@ impl From<&str> for OptionTypeSetItem {
 #[serde(untagged)]
 pub enum OptionTypeSetItemConfiguration {
     String(String),
-    Item(OptionTypeSetItem),
+    Item(ContainerTypeSetItem),
 }
 
 impl Default for OptionTypeSetItemConfiguration {
@@ -264,7 +286,7 @@ impl Default for OptionTypeSetItemConfiguration {
     }
 }
 
-impl From<OptionTypeSetItemConfiguration> for OptionTypeSetItem {
+impl From<OptionTypeSetItemConfiguration> for ContainerTypeSetItem {
     fn from(value: OptionTypeSetItemConfiguration) -> Self {
         match value {
             OptionTypeSetItemConfiguration::String(string) => string.as_str().into(),
@@ -402,7 +424,7 @@ mod tests {
         let mut option_types_includes = option_types.includes.iter();
         assert_eq!(
             option_types_includes.next(),
-            Some(&OptionTypeSetItem {
+            Some(&ContainerTypeSetItem {
                 path: "AsString".to_owned(),
                 wrapped: None,
             }),
@@ -411,19 +433,19 @@ mod tests {
 
         assert_eq!(
             option_types_includes.next(),
-            Some(&OptionTypeSetItem { path: "AsItemWithoutWrapped".to_owned(), wrapped: None, }),
+            Some(&ContainerTypeSetItem { path: "AsItemWithoutWrapped".to_owned(), wrapped: None, }),
             "option_types.includes[1]\n{:#?}", config
         );
 
         assert_eq!(
             option_types_includes.next(),
-            Some(&OptionTypeSetItem { path: "AsItemWithShortWrapped".to_owned(), wrapped: Some("ShortWrapped".to_string()), }),
+            Some(&ContainerTypeSetItem { path: "AsItemWithShortWrapped".to_owned(), wrapped: Some("ShortWrapped".to_string()), }),
             "option_types.includes[2]\n{:#?}", config
         );
 
         assert_eq!(
             option_types_includes.next(),
-            Some(&OptionTypeSetItem { path: "AsItemWithFullWrapped".to_owned(), wrapped: Some("::full::path::FullWrapped".to_string()), }),
+            Some(&ContainerTypeSetItem { path: "AsItemWithFullWrapped".to_owned(), wrapped: Some("::full::path::FullWrapped".to_string()), }),
             "option_types.includes[3]\n{:#?}", config
         );
 
@@ -431,5 +453,42 @@ mod tests {
 
         let mut option_types_excludes = option_types.excludes.iter();
         assert_eq!(option_types_excludes.next(), None, "option_types.excludes[0]\n{:#?}", config);
+
+
+        let extend_types = &config.extend_types;
+        assert_eq!(extend_types.defaults, true, "extend_types.defaults");
+
+        let mut extend_types_includes = extend_types.includes.iter();
+        assert_eq!(
+            extend_types_includes.next(),
+            Some(&ContainerTypeSetItem {
+                path: "AsString".to_owned(),
+                wrapped: None,
+            }),
+            "extend_types.includes[0]\n{:#?}", config
+        );
+
+        assert_eq!(
+            extend_types_includes.next(),
+            Some(&ContainerTypeSetItem { path: "AsItemWithoutWrapped".to_owned(), wrapped: None, }),
+            "extend_types.includes[1]\n{:#?}", config
+        );
+
+        assert_eq!(
+            extend_types_includes.next(),
+            Some(&ContainerTypeSetItem { path: "AsItemWithShortWrapped".to_owned(), wrapped: Some("ShortWrapped".to_string()), }),
+            "extend_types.includes[2]\n{:#?}", config
+        );
+
+        assert_eq!(
+            extend_types_includes.next(),
+            Some(&ContainerTypeSetItem { path: "AsItemWithFullWrapped".to_owned(), wrapped: Some("::full::path::FullWrapped".to_string()), }),
+            "extend_types.includes[3]\n{:#?}", config
+        );
+
+        assert!(extend_types_includes.next().is_none(), "extend_types.includes[4]\n{:#?}", config);
+
+        let mut extend_types_excludes = extend_types.excludes.iter();
+        assert_eq!(extend_types_excludes.next(), None, "extend_types.excludes[0]\n{:#?}", config);
     }
 }

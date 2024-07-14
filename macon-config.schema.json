@@ -55,6 +55,41 @@
           }
         }
       }
+    },
+    "extend_types": {
+      "description": "Override pathes that should implement Extend",
+      "type": "object",
+      "properties": {
+        "includes": {
+          "description": "Pathes that should implement Extend",
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "description": "Path that should implement Extend",
+                "type": "string"
+              },
+              {
+                "description": "Path and associated wrapped type",
+                "type": "object",
+                "properties": {
+                  "path": {
+                    "description": "Path that should implement Extend",
+                    "type": "string"
+                  },
+                  "wrapped": {
+                    "description": "Contained type",
+                    "type": "string"
+                  },
+                  "required": [
+                    "path"
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
     }
   }
 }

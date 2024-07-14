@@ -3,7 +3,9 @@
 //! See it for all details.
 //!
 
-use std::fmt::Debug;
+use std::{
+    fmt::Debug, ops::Deref, vec
+};
 
 /// Builder field type when building struct implementing [`Default`].
 #[derive(Default,)]
@@ -23,6 +25,14 @@ pub enum Defaulting<T: Default> {
     Default,
     /// Builder field value when using provided data.
     Set(T),
+}
+
+/// Builder field type when target implment [`Extend`].
+pub struct Extending<C,I> {
+    /// Collecting items
+    items: Vec<I>,
+    /// Building value
+    value: C,
 }
 
 /// Builder field type for `Panic` or `Result` mode.
@@ -79,6 +89,64 @@ impl<T: Default> Defaulting<T> {
             Self::Default => T::default(),
             Self::Set(value) => value,
         }
+    }
+}
+
+impl<C, I> Default for Extending<C, I> where C: Default {
+    fn default() -> Self {
+        Self {
+            items: Default::default(),
+            value: Default::default(),
+        }
+    }
+}
+
+impl<C, I> Deref for Extending<C, I> {
+    type Target = C;
+
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<C, I> Extend<I> for Extending<C, I> {
+    /// Store `iter` values into `items` (until container is created)
+    fn extend<T: IntoIterator<Item = I>>(&mut self, iter: T) {
+        self.items.extend(iter)
+    }
+}
+
+impl<C, I> IntoIterator for Extending<C, I> {
+    type Item = I;
+    type IntoIter = vec::IntoIter<I>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.items.into_iter()
+    }
+}
+
+impl<C, I> Extending<C, I>  {
+    pub fn with_value(self, value: C) -> Self {
+        Self {
+            value,
+            items: self.items,
+        }
+    }
+
+    pub fn value_mut(&mut self) -> &mut C {
+        &mut self.value
+    }
+
+    /// Consume to return `value` and collected `items`.
+    pub fn unwrap(self) -> (C, Vec<I>) {
+        (self.value, self.items)
+    }
+
+    /// Consume to return built collection extracting `value` and extending with ìtems.
+    pub fn unwrap_with<IS: Extend<I>, F: FnOnce(C)->IS>(self, f: F) -> IS {
+        let Self { value, items } = self;
+        let mut unwrapped = f(value);
+        unwrapped.extend(items);
+        unwrapped
     }
 }
 
