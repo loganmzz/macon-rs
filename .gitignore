@@ -12,4 +12,5 @@ Cargo.lock
 /target
 
 # Custom
+/.vscode
 /tests/demo.rs

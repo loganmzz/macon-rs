@@ -2,24 +2,12 @@
 //! * Setting a field many times
 //! * Building with unset field
 
+use quote::ToTokens;
+
 use super::*;
 
 pub struct StateGenerator {
     builder: crate::model::Builder,
-}
-
-struct OutputProperty<'a>(&'a Property);
-struct OutputProperties<'a>(Vec<OutputProperty<'a>>);
-
-impl<'a> From<&'a Property> for OutputProperty<'a> {
-    fn from(value: &'a Property) -> Self {
-        Self(value)
-    }
-}
-impl<'a> From<&'a Builder> for OutputProperties<'a> {
-    fn from(value: &'a Builder) -> Self {
-        Self(value.properties.iter().map(|p| p.into()).collect())
-    }
 }
 
 impl StateGenerator {
@@ -92,12 +80,21 @@ impl StateGenerator {
 
         let setter_standard = {
             let setter_standard = field.setter();
-            let typevar = field.typevar();
+            let argtype = if ! field.into.is_disabled() {
+                field.typevar().to_token_stream()
+            } else {
+                field.ty.to_token_stream()
+            };
             let ident = &field.ident;
             let into_type = field.ty_into();
             let fields_standard = self.properties().typestate_assign(field, Setter::Standard);
+            let generic = if ! field.into.is_disabled() {
+                quote!(<#argtype: ::core::convert::Into<#into_type>>)
+            } else {
+                quote!()
+            };
             quote! {
-                pub fn #setter_standard<#typevar: ::core::convert::Into<#into_type>>(self, #ident: #typevar) -> #builder_name<#struct_state_to> {
+                pub fn #setter_standard #generic(self, #ident: #argtype) -> #builder_name<#struct_state_to> {
                     #builder_name #fields_standard
                 }
             }

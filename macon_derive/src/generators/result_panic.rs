@@ -1,5 +1,7 @@
 //! Generator panicing on missing fields and ignore setting many times.
 
+use quote::ToTokens;
+
 use super::*;
 
 pub struct ResultPanicGenerator {
@@ -59,8 +61,18 @@ impl ResultPanicGenerator {
             let setter_standard = {
                 let assign_standard = f.result_assign(Setter::Standard);
                 let ty = f.ty_into();
+                let argtype = if ! f.into.is_disabled() {
+                    typevar.to_token_stream()
+                } else {
+                    ty.to_token_stream()
+                };
+                let generic = if ! f.into.is_disabled() {
+                    quote!(#typevar: ::core::convert::Into<#ty>)
+                } else {
+                    quote!()
+                };
                 quote! {
-                    pub fn #setter<#typevar: ::core::convert::Into<#ty>>(mut self, #ident: #typevar) -> Self {
+                    pub fn #setter<#generic>(mut self, #ident: #argtype) -> Self {
                         #assign_standard
                         self
                     }
