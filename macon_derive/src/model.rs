@@ -37,6 +37,7 @@ pub struct Builder {
     pub is_tuple: bool,
     pub option: bool,
     pub default: Setting<()>,
+    pub into: Setting<()>,
 }
 
 #[derive(Debug,PartialEq)]
@@ -85,7 +86,7 @@ impl<T: Clone> Clone for Setting<T> {
 }
 
 impl<T> Setting<T> {
-    pub fn undefine() -> Self {
+    pub fn undefined() -> Self {
         Setting::Undefined
     }
     pub fn disable() -> Self {
@@ -117,11 +118,62 @@ impl<T> Setting<T> {
             _ => None,
         }
     }
+
+    pub fn map<F,U>(self, f: F) -> Setting<U> where F: FnOnce(T)->U {
+        self.and_then(|t| Setting::enable(f(t)))
+    }
+    pub fn and_then<F,U>(self, f: F) -> Setting<U> where F: FnOnce(T)->Setting<U> {
+        match self {
+            Self::Undefined => Setting::undefined(),
+            Self::Disabled => Setting::disable(),
+            Self::Enabled(t) => f(t),
+        }
+    }
 }
+
+impl Setting<()> {
+    pub fn from_parse_nested_meta(nested: syn::meta::ParseNestedMeta) -> Result<Self> {
+        if nested.input.peek(Token![=]) {
+            let value = nested
+                .value()
+                .map_err_context("Unable to parse setting as value")?;
+            match value.parse::<Type>().map_err_context("Unable to parse setting type value")? {
+                Type::Never(_) => Ok(Self::disable()),
+                _ => Err(nested.error(format!("Unsupported setting value {value:?}"))),
+            }
+        } else {
+            Ok(Self::enable(()))
+        }
+    }
+}
+
+impl Setting<Type> {
+    pub fn from_parse_nested_meta(nested: syn::meta::ParseNestedMeta) -> Result<Self> {
+        let value = nested
+            .value()
+            .map_err_context("Unable to parse setting value")?;
+        let type_: Type = value
+            .parse()
+            .map_err_context("Unable to parse setting Type")?;
+        Ok(match type_ {
+            Type::Tuple(ref typetuple) => {
+                if typetuple.elems.is_empty() {
+                    Setting::enable(type_)
+                } else {
+                    Setting::disable()
+                }
+            },
+            Type::Never(_) => Setting::disable(),
+            _ => Setting::enable(type_),
+        })
+    }
+}
+
+
 
 impl<T> Default for Setting<T> {
     fn default() -> Self {
-        Self::undefine()
+        Self::undefined()
     }
 }
 
@@ -135,12 +187,14 @@ impl<T> From<T> for Setting<T> {
 pub struct PropertySettings {
     pub option: Setting<Type>,
     pub default: Setting<()>,
+    pub into: Setting<()>,
 }
 
 #[derive(Debug,Default,)]
 pub struct Properties {
     pub is_tuple: bool,
     pub default: Setting<()>,
+    pub into: Setting<()>,
     items: Vec<Property>,
 }
 impl ::core::ops::Deref for Properties {
@@ -173,6 +227,7 @@ pub struct Property {
     pub is_tuple: bool,
     pub option: Setting<Type>,
     pub default: Setting<()>,
+    pub into: Setting<()>,
     pub struct_default: Setting<()>,
 }
 
@@ -193,6 +248,7 @@ impl Default for Builder {
             is_tuple: false,
             option: true,
             default: Default::default(),
+            into: Default::default(),
         }
     }
 }
@@ -277,36 +333,22 @@ impl Builder {
                 }
                 Ok(())
             } else if nested.path.is_ident("Option") {
-                let value: Type = nested
-                    .value()
-                    .map_err_context("Unable to parse Option value for struct builder attribute")?
-                    .parse()
-                    .map_err_context("Unable to parse into Option value for struct builder attribute")?;
-                if let Type::Never(_) = value {
-                    self.option = false;
-                    Ok(())
-                } else {
-                    Err(nested.error(format!("Unsupported Option value {:?} for struct builder attribute", value)))
-                }
+                self.option = Setting::<()>::from_parse_nested_meta(nested)
+                    .map_err_context("Unable to parse Option for struct builder attribute")?
+                    .is_enabled();
+                Ok(())
             } else if nested.path.is_ident("Default") {
-                if nested.input.is_empty() || nested.input.peek(Token![,]) {
-                    self.set_default(Setting::enable(()));
-                    Ok(())
-                } else if nested.input.peek(Token![=]) {
-                    let value: Type = nested
-                        .value()
-                        .map_err_context("Unable to parse Default value for struct builder attribute")?
-                        .parse()
-                        .map_err_context("Unable to parse Default value into Type for struct builder attribute")?;
-                    if let Type::Never(_) = value {
-                        self.set_default(Setting::disable());
-                        Ok(())
-                    } else {
-                        Err(nested.error(format!("Unsupported Default value {:?} for struct builder attribute", value)))
-                    }
-                } else {
-                    Err(nested.error(format!("Unsupported Default format {:?} for struct builder attribute", nested.input)))
-                }
+                self.set_default(
+                    Setting::<()>::from_parse_nested_meta(nested)
+                        .map_err_context("Unable to parse Default for struct builder attribute")?
+                );
+                Ok(())
+            } else if nested.path.is_ident("Into") {
+                self.set_into(
+                    Setting::<()>::from_parse_nested_meta(nested)
+                        .map_err_context("Unable to parse Into for struct builder attribute")?
+                );
+                Ok(())
             } else {
                 Err(nested.error(format!("Unsupported struct builder attribute option: {:?}", nested.path)))
             }
@@ -357,6 +399,11 @@ impl Builder {
         self.default = default;
         self.properties.default = default;
     }
+
+    pub fn set_into(&mut self, into: Setting<()>) {
+        self.into = into;
+        self.properties.into = into;
+    }
 }
 
 impl Property {
@@ -383,45 +430,40 @@ impl Property {
                 metalist.parse_nested_meta(|nested| {
                     if nested.path.is_ident("Option") {
                         if settings.option.is_defined() {
-                            return Err(nested.error(format!("Option has been already specified: {:?}", settings.option)));
+                            return Err(nested.error(format!("Option has been already specified ({:?}) for field ({:?}) builder attribute", settings.option, name)));
                         }
-                        let type_: Type = nested.value()?.parse()?;
-                        settings.option = match type_ {
-                            Type::Tuple(ref typetuple) => {
-                                if typetuple.elems.is_empty() {
-                                    Setting::enable(type_)
-                                } else {
-                                    Setting::disable()
+                        settings.option = Setting::<Type>::from_parse_nested_meta(nested)
+                            .map_err_context("Unable to parse Option for field builder attribute")?
+                            .and_then(|type_| {
+                                match type_ {
+                                    Type::Tuple(ref typetuple) => {
+                                        if typetuple.elems.is_empty() {
+                                            Setting::enable(type_)
+                                        } else {
+                                            Setting::disable()
+                                        }
+                                    },
+                                    _ => Setting::enable(type_),
                                 }
-                            },
-                            Type::Never(_) => Setting::disable(),
-                            _ => Setting::enable(type_),
-                        };
+                            });
                     } else if nested.path.is_ident("Default") {
                         if settings.default.is_defined() {
-                            return Err(nested.error(format!("Default has been already specified: {:?}", settings.default)));
+                            return Err(nested.error(format!("Default has been already specified ({:?}) for field ({:?}) builder attribute", settings.default, name)));
                         }
-                        if nested.input.is_empty() || nested.input.peek(Token![,]) {
-                            settings.default = Setting::enable(());
-                        } else if nested.input.peek(Token![=]) {
-                            let value: Type = nested
-                                .value()
-                                .map_err_context(format!("Unable to parse Default value for field ({:?}) builder attribute", name))?
-                                .parse()
-                                .map_err_context(format!("Unable to parse Default value into Type for field ({:?}) builder attribute", name))?;
-                            if let Type::Never(_) = value {
-                                settings.default = Setting::disable();
-                            } else {
-                                return Err(nested.error(format!("Unsupported Default value {:?} for field ({:?}) builder attribute", value, name)));
-                            }
-                        } else {
-                            return Err(nested.error(format!("Unsupported Default format {:?} for field ({:?}) builder attribute", nested.input, name)));
+                        settings.default = Setting::<()>::from_parse_nested_meta(nested)
+                            .map_err_context(format!("Unable to parse Default value for field ({name:?}) builder attribute"))?;
+                    } else if nested.path.is_ident("Into") {
+                        if settings.into.is_defined() {
+                            return Err(nested.error(format!("Into has been already specified ({:?}) for field ({:?}) builder attribute", settings.option, name)));
                         }
+                        settings.into = Setting::<()>::from_parse_nested_meta(nested)
+                            .map_err_context(format!("Unable to parse Into value for field ({name:?})"))?;
                     } else {
                         return Err(nested.error(format!("Unsupported option {:?} for field ({:?}) builder attribute", nested.path, name)));
                     }
                     Ok(())
-                })?;
+                })
+                .map_err_context(format!("Invalid builder settings for field {:?}", name))?;
             }
         if settings.option.is_undefined() {
             if let Some(ty) = Self::get_option_arg(&field.ty) {
@@ -431,8 +473,11 @@ impl Property {
         if settings.default.is_undefined() {
             let default_types = crate::config::get().default_types();
             if default_types.match_type(&field.ty) {
-                settings.default = Setting::Enabled(());
+                settings.default = Setting::enable(());
             }
+        }
+        if settings.into.is_undefined() {
+            settings.into = builder.into.clone();
         }
         Ok(Self {
             ordinal,
@@ -442,6 +487,7 @@ impl Property {
             is_tuple,
             option: settings.option,
             default: settings.default,
+            into: settings.into,
             struct_default: builder.default.clone(),
         })
     }
@@ -609,7 +655,11 @@ impl Property {
         let value = if self.name == target.name {
             match setter {
                 Setter::Standard => {
-                    let mut value = quote!(#ident.into());
+                    let mut value = if ! self.into.is_disabled() {
+                        quote!(#ident.into())
+                    } else {
+                        quote!(#ident)
+                    };
                     if self.option.is_enabled() {
                         value = quote!(::core::option::Option::Some(#value));
                     }
@@ -696,7 +746,10 @@ impl Property {
         let id = self.id();
         let mut value = match setter {
             Setter::Standard => {
-                let mut value = quote!(#ident.into());
+                let mut value = quote!(#ident);
+                if ! self.into.is_disabled() {
+                    value = quote!(#value.into());
+                }
                 if self.option.is_enabled() {
                     value = quote!(::core::option::Option::Some(#value));
                 }
@@ -886,6 +939,32 @@ pub mod tests {
     }
 
     #[test]
+    fn builder_attribute_into() {
+        let mut builder = Builder::default();
+        let attribute: Attribute = parse_quote! {
+            #[builder]
+        };
+        builder.with_attribute(attribute).unwrap();
+        assert_eq!(
+            builder.into,
+            Setting::undefined(),
+        );
+    }
+
+    #[test]
+    fn builder_attribute_into_disabled() {
+        let mut builder = Builder::default();
+        let attribute: Attribute = parse_quote! {
+            #[builder(Into=!)]
+        };
+        builder.with_attribute(attribute).unwrap();
+        assert_eq!(
+            builder.into,
+            Setting::disable(),
+        );
+    }
+
+    #[test]
     fn builder_attribute_mode_unknown() {
         let mut builder = Builder::default();
         let attribute: Attribute = parse_quote! {
@@ -975,7 +1054,7 @@ pub mod tests {
             struct Demo;
         });
 
-        assert_eq!(builder.default, Setting::undefine(), "builder.default");
+        assert_eq!(builder.default, Setting::undefined(), "builder.default");
     }
 
     #[test]

@@ -4,6 +4,10 @@ Source: https://keepachangelog.com/
 
 ## [Unreleased]
 
+### Added
+
+- Add setting to disable `Into` support for setters (#30)
+
 ## [1.0.0] - 2024-02-02
 
 * **Crate**: https://crates.io/crates/macon/1.0.0

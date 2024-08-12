@@ -5,14 +5,8 @@ pub use crate::model::{
     Property,
     Setter,
 };
-pub use proc_macro2::{
-    Ident,
-    TokenStream,
-};
-pub use quote::{
-    format_ident,
-    quote,
-};
+pub use proc_macro2::TokenStream;
+pub use quote::quote;
 
 pub mod typestate;
 pub mod result_panic;

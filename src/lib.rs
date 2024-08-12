@@ -47,6 +47,9 @@
 //! * **`Default`** <br/>
 //! Enforce [`Default`] support for struct. See ["`Default` struct"](#default-struct).
 //!
+//! * **`Into=!`** <br/>
+//! Disable [`Into`][Into] for whole setters. See ["`Into` argument"](#into-argument).
+//!
 //! #### field
 //!
 //! * **`Option=!`** <br/>
@@ -60,6 +63,9 @@
 //!
 //! * **`Default`** <br/>
 //! Enforce [`Default`] support for given field. See ["`Default` fields"](#default-fields).
+//!
+//! * **`Into=!`** <br/>
+//! Disable [`Into`][Into] for setter. See ["`Into` argument"](#into-argument).
 //!
 //! ### Features
 //!
@@ -211,6 +217,43 @@
 //! let _mytuple: MyTuple = MyTuple::builder()
 //!     .set("foobar")
 //!     .build();
+//! ```
+//!
+//! You can disable [`Into`] support by using `#[builder(Into=!)]` at struct or field level:
+//!
+//! ```
+//! # #[macro_use] extern crate macon;
+//! #[derive(Builder)]
+//! #[builder(Into=!)]     // Disable for all fields
+//! struct IntoSettings {
+//!   #[builder(Into=!)]   // Disable for specific field
+//!   no_into: String,
+//!   #[builder(Into)]     // Enable (only when disabled at struct level) for specific field
+//!   with_into: String,
+//! }
+//!
+//! let built = IntoSettings::builder()
+//!   .no_into(String::from("no value conversion"))
+//!   .with_into("value conversion")
+//!   .build();
+//!
+//! assert_eq!(String::from("no value conversion"), built.no_into);
+//! assert_eq!(String::from("value conversion"), built.with_into);
+//! ```
+//!
+//! This feature is required to use with [`dyn` trait](https://doc.rust-lang.org/book/ch19-04-advanced-types.html#dynamically-sized-types-and-the-sized-trait):
+//!
+//! ```
+//! # #[macro_use] extern crate macon;
+//! #[derive(Builder)]
+//! struct DynTrait {
+//!   #[builder(Into=!)]
+//!   function: Box<dyn Fn(usize) -> usize>,
+//! }
+//!
+//! DynTrait::builder()
+//!   .function(Box::new(|x| x + 1))
+//!   .build();
 //! ```
 //!
 //! #### Implement `Into`
