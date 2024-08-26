@@ -1,6 +1,6 @@
 [package]
 name = "macon"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2021"
 
 authors = ["Logan Mzz"]
@@ -22,8 +22,8 @@ categories = [
 ]
 
 [dependencies]
-macon_derive = { version = "=1.1.0", path = "macon_derive" }
-macon_api = { version = "=1.1.0", path = "macon_api" }
+macon_derive = { version = "=1.1.1", path = "macon_derive" }
+macon_api = { version = "=1.1.1", path = "macon_api" }
 
 [package.metadata.docs.rs]
 rustdoc-args = ["--generate-link-to-definition"]
@@ -41,7 +41,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "1.1.0"
+version = "1.1.1"
 edition = "2021"
 
 authors = ["Logan Mzz"]
