@@ -128,7 +128,7 @@ impl fmt::Display for Version {
     }
 }
 
-#[derive(Clone,Copy,PartialEq,)]
+#[derive(Clone,Copy,Debug,PartialEq,)]
 enum Matching {
     Line,
     Exact,
@@ -193,6 +193,7 @@ impl fmt::Display for Template {
     }
 }
 
+#[derive(Debug)]
 struct CompiledTemplate {
     matching: Matching,
     source: String,
@@ -260,6 +261,7 @@ impl TemplateSet {
     }
 }
 
+#[derive(Debug)]
 struct CompiledTemplateSet {
     templates: Vec<(String, CompiledTemplate)>,
 }
@@ -347,7 +349,7 @@ impl LinkUpdater {
     }
 
     fn revert_all(&mut self, source: &Version, target: &Version) -> Result<()> {
-        self.update_all(self.templates.reverse().compile(target, source))
+        self.update_all(self.templates.reverse().compile(source, target))
     }
 
     fn save_all(&self) -> Result<()> {
