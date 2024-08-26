@@ -229,7 +229,8 @@ let _mytuple: MyTuple = MyTuple::builder()
 You can disable [`Into`][Into] support by using `#[builder(Into=!)]` at struct or field level:
 
 ```rust
-# #[macro_use] extern crate macon;
+#[macro_use] extern crate macon;
+
 #[derive(Builder)]
 #[builder(Into=!)]     // Disable for all fields
 struct IntoSettings {
@@ -251,7 +252,8 @@ assert_eq!(String::from("value conversion"), built.with_into);
 This feature is required to use with [`dyn` trait](https://doc.rust-lang.org/book/ch19-04-advanced-types.html#dynamically-sized-types-and-the-sized-trait):
 
 ```rust
-# #[macro_use] extern crate macon;
+#[macro_use] extern crate macon;
+
 #[derive(Builder)]
 struct DynTrait {
   #[builder(Into=!)]
