@@ -4,6 +4,11 @@ Source: https://keepachangelog.com/
 
 ## [Unreleased]
 
+## [1.1.0] - 2024-08-26
+
+* **Crate**: https://crates.io/crates/macon/1.1.0
+* **Documentation**: https://docs.rs/macon/1.1.0/macon/
+
 ### Added
 
 - Add setting to disable `Into` support for setters (#30)
