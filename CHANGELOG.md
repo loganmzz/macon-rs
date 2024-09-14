@@ -4,6 +4,14 @@ Source: https://keepachangelog.com/
 
 ## [Unreleased]
 
+### Deprecated
+
+- Deprecate `Option=!` and `Into=!` for struct attribute `#[builder]` in favor of `fields(Option=!)` and `fields(Into=!)` (#32)
+
+### Added
+
+- Add nested `fields(...)` value for struct attribute `#[builder]` (#32)
+
 ## [1.1.0] - 2024-08-26
 
 * **Crate**: https://crates.io/crates/macon/1.1.0

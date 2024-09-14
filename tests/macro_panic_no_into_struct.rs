@@ -5,7 +5,7 @@ use macon::Builder;
 // #############################################################################
 #[derive(Builder)]
 #[builder(mode=Panic,)]
-#[builder(Into=!)]
+#[builder(fields(Into=!))]
 struct Foobar {
     f: Box<dyn Fn(usize) -> usize>,
 }
