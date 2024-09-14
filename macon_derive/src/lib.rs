@@ -9,6 +9,8 @@ use syn::{
     DeriveInput,
 };
 
+mod attributes;
+mod common;
 mod config;
 mod model;
 mod generators;

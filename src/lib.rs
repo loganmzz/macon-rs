@@ -38,17 +38,21 @@
 //! * **`mode=<value>`** <br/>
 //! Change builder and associated `build()` function behavior. Supported values: [`Typestate`](#typestate-pattern-default) (_default_), [`Panic`](#panic-on-build) or [`Result`](#result-on-build).
 //!
-//! * **`Option=!`** <br/>
-//! Disable automatic [`Option`] detection for whole struct. See ["`Option` fields"](#option-fields).
-//!
 //! * **`Default=!`** <br/>
-//! Disable automatic [`Default`] derive detection for struct. See ["`Default` struct"](#default-struct).
+//! Disable automatic [`Default`] derive detection for **struct**. See ["`Default` struct"](#default-struct).
 //!
 //! * **`Default`** <br/>
-//! Enforce [`Default`] support for struct. See ["`Default` struct"](#default-struct).
+//! Enforce [`Default`] support for **struct**. See ["`Default` struct"](#default-struct).
 //!
-//! * **`Into=!`** <br/>
-//! Disable [`Into`][Into] for whole setters. See ["`Into` argument"](#into-argument).
+//! * **`Option=!`** (_deprecated. Use `fields(Option=!)` instead._)
+//!
+//! * **`Into=!`** (_deprecated. Use `fields(Into=!)` instead._)
+//!
+//! * **`fields(Option=!)`** <br/>
+//! Disable automatic [`Option`] detection for **fields**. See ["`Option` fields"](#option-fields).
+//!
+//! * **`fields(Into=!)`** <br/>
+//! Disable [`Into`] for **fields**. See ["`Into` argument"](#into-argument).
 //!
 //! #### field
 //!
