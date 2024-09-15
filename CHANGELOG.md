@@ -11,6 +11,7 @@ Source: https://keepachangelog.com/
 ### Added
 
 - Add nested `fields(...)` value for struct attribute `#[builder]` (#32)
+- Add `fields(Default=!)` for struct attribute `#[builder]` (#32)
 
 ## [1.1.0] - 2024-08-26
 

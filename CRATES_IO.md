@@ -51,6 +51,9 @@ Enforce [`Default`][Default] support for **struct**. See ["`Default` struct"](#d
 * **`fields(Option=!)`** <br/>
 Disable automatic [`Option`][Option] detection for **fields**. See ["`Option` fields"](#option-fields).
 
+* **`fields(Default=!)`** <br/>
+Disable automatic [`Default`][Default] detection for **fields**. See ["`Default` fields"](#default-fields).
+
 * **`fields(Into=!)`** <br/>
 Disable [`Into`][Into] for **fields**. See ["`Into` argument"](#into-argument).
 

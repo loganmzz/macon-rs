@@ -27,6 +27,7 @@ pub struct StructBuilder {
 #[derive(Debug, Default, PartialEq)]
 pub struct StructBuilderFields {
     option: Setting<()>,
+    default: Setting<()>,
     into: Setting<()>,
 }
 
@@ -119,6 +120,13 @@ impl StructBuilderFields {
         &mut self.option
     }
 
+    pub fn default(&self) -> &Setting<()> {
+        &self.default
+    }
+    pub fn default_mut(&mut self) -> &mut Setting<()> {
+        &mut self.default
+    }
+
     pub fn into_(&self) -> &Setting<()> {
         &self.into
     }
@@ -131,6 +139,9 @@ impl StructBuilderFields {
             if nested.path.is_ident("Option") {
                 self.option = Setting::<()>::from_parse_nested_meta(nested)
                     .map_err_context("Unable to parse Option for fields struct builder attribute")?;
+            } else if nested.path.is_ident("Default") {
+                self.default = Setting::<()>::from_parse_nested_meta(nested)
+                    .map_err_context("Unable to parse Default for fields struct builder attribute")?;
             } else if nested.path.is_ident("Into") {
                 self.into = Setting::<()>::from_parse_nested_meta(nested)
                     .map_err_context("Unable to parse Into for fields struct builder attribute")?;
@@ -294,6 +305,11 @@ pub mod tests {
             "fields.into",
         );
         assert_eq!(
+            builder.fields.default,
+            Setting::undefined(),
+            "fields.default",
+        );
+        assert_eq!(
             builder.fields.option,
             Setting::undefined(),
             "fields.option",
@@ -324,6 +340,11 @@ pub mod tests {
             "fields.into",
         );
         assert_eq!(
+            builder.fields.default,
+            Setting::undefined(),
+            "fields.default",
+        );
+        assert_eq!(
             builder.fields.option,
             Setting::undefined(),
             "fields.option",
@@ -352,6 +373,11 @@ pub mod tests {
             builder.fields.into,
             Setting::undefined(),
             "fields.into",
+        );
+        assert_eq!(
+            builder.fields.default,
+            Setting::undefined(),
+            "fields.default",
         );
         assert_eq!(
             builder.fields.option,
@@ -385,6 +411,11 @@ pub mod tests {
             "fields.into",
         );
         assert_eq!(
+            builder.fields.default,
+            Setting::undefined(),
+            "fields.default",
+        );
+        assert_eq!(
             builder.fields.option,
             Setting::undefined(),
             "fields.option",
@@ -413,6 +444,11 @@ pub mod tests {
             builder.fields.into,
             Setting::enable((), span()),
             "fields.into",
+        );
+        assert_eq!(
+            builder.fields.default,
+            Setting::undefined(),
+            "fields.default",
         );
         assert_eq!(
             builder.fields.option,
@@ -445,6 +481,11 @@ pub mod tests {
             "fields.into",
         );
         assert_eq!(
+            builder.fields.default,
+            Setting::undefined(),
+            "fields.default",
+        );
+        assert_eq!(
             builder.fields.option,
             Setting::undefined(),
             "fields.option",
@@ -473,6 +514,11 @@ pub mod tests {
             builder.fields.into,
             Setting::undefined(),
             "fields.into",
+        );
+        assert_eq!(
+            builder.fields.default,
+            Setting::undefined(),
+            "fields.default",
         );
         assert_eq!(
             builder.fields.option,
@@ -505,6 +551,11 @@ pub mod tests {
             "fields.into",
         );
         assert_eq!(
+            builder.fields.default,
+            Setting::undefined(),
+            "fields.default",
+        );
+        assert_eq!(
             builder.fields.option,
             Setting::disable(span()),
             "fields.option",
@@ -533,6 +584,11 @@ pub mod tests {
             builder.fields.into,
             Setting::enable((), span()),
             "fields.into",
+        );
+        assert_eq!(
+            builder.fields.default,
+            Setting::undefined(),
+            "fields.default",
         );
         assert_eq!(
             builder.fields.option,
@@ -565,6 +621,81 @@ pub mod tests {
             "fields.into",
         );
         assert_eq!(
+            builder.fields.default,
+            Setting::undefined(),
+            "fields.default",
+        );
+        assert_eq!(
+            builder.fields.option,
+            Setting::undefined(),
+            "fields.option",
+        );
+    }
+
+    #[test]
+    fn struct_builder_attribute_fields_default_enabled() {
+        let derive_input: DeriveInput = parse_quote! {
+            #[builder(fields(Default))]
+            struct Foobar;
+        };
+        let builder = StructBuilder::from_input(&derive_input)
+            .expect("StructBuilder::from_input");
+        assert_eq!(
+            builder.mode,
+            Setting::undefined(),
+            "mode",
+        );
+        assert_eq!(
+            builder.default,
+            Setting::undefined(),
+            "default",
+        );
+        assert_eq!(
+            builder.fields.into,
+            Setting::undefined(),
+            "fields.into",
+        );
+        assert_eq!(
+            builder.fields.default,
+            Setting::enable((), span()),
+            "fields.default",
+        );
+        assert_eq!(
+            builder.fields.option,
+            Setting::undefined(),
+            "fields.option",
+        );
+    }
+
+    #[test]
+    fn struct_builder_attribute_fields_default_disabled() {
+        let derive_input: DeriveInput = parse_quote! {
+            #[builder(fields(Default=!))]
+            struct Foobar;
+        };
+        let builder = StructBuilder::from_input(&derive_input)
+            .expect("StructBuilder::from_input");
+        assert_eq!(
+            builder.mode,
+            Setting::undefined(),
+            "mode",
+        );
+        assert_eq!(
+            builder.default,
+            Setting::undefined(),
+            "default",
+        );
+        assert_eq!(
+            builder.fields.into,
+            Setting::undefined(),
+            "fields.into",
+        );
+        assert_eq!(
+            builder.fields.default,
+            Setting::disable(span()),
+            "fields.default",
+        );
+        assert_eq!(
             builder.fields.option,
             Setting::undefined(),
             "fields.option",
@@ -595,6 +726,11 @@ pub mod tests {
             "fields.into",
         );
         assert_eq!(
+            builder.fields.default,
+            Setting::undefined(),
+            "fields.default",
+        );
+        assert_eq!(
             builder.fields.option,
             Setting::enable((), span()),
             "fields.option",
@@ -623,6 +759,11 @@ pub mod tests {
             builder.fields.into,
             Setting::undefined(),
             "fields.into",
+        );
+        assert_eq!(
+            builder.fields.default,
+            Setting::undefined(),
+            "fields.default",
         );
         assert_eq!(
             builder.fields.option,

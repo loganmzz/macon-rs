@@ -77,10 +77,10 @@ pub struct PropertySettings {
 pub struct Properties {
     /// Is Tuple struct `(a,b,c)` or Named one `{ a:A, b:B, c:C }`
     pub is_tuple: bool,
-    /// Is Default supported for struct
-    pub default: Setting<()>,
     /// Is Into supported for fields
     pub into: Setting<()>,
+    /// Is Default supported for fields
+    pub default: Setting<()>,
     /// Is Option supported for fields
     pub option: Setting<()>,
     /// Struct fields
@@ -183,8 +183,9 @@ impl Builder {
         self.mode = builder.mode().try_into()?;
         self.set_default(builder.default().clone());
 
-        self.properties.option = builder.fields().option().clone();
-        self.properties.into   = builder.fields().into_().clone();
+        self.properties.option  = builder.fields().option().clone();
+        self.properties.default = builder.fields().default().clone();
+        self.properties.into    = builder.fields().into_().clone();
 
         if ! self.default.is_defined() {
             if let Some(span) = derives.get_type("Default") {
@@ -235,7 +236,6 @@ impl Builder {
 
     pub fn set_default(&mut self, default: Setting<()>) {
         self.default = default;
-        self.properties.default = default;
     }
 }
 
@@ -258,11 +258,15 @@ impl Property {
             builder_attribute.option().clone()
         };
         let default = if builder_attribute.default().is_undefined() {
-            let default_types = crate::config::get().default_types();
-            if default_types.match_type(&field.ty) {
-                Setting::enable((), span)
-            } else {
+            if builder.properties.default.is_disabled() {
                 Setting::disable(span)
+            } else {
+                let default_types = crate::config::get().default_types();
+                if default_types.match_type(&field.ty) {
+                    Setting::enable((), span)
+                } else {
+                    Setting::disable(span)
+                }
             }
         } else {
             builder_attribute.default().clone()
@@ -700,6 +704,10 @@ pub mod tests {
 
     use super::*;
 
+    fn span() -> Span {
+        Span::call_site()
+    }
+
     fn newbuilder(derive: DeriveInput) -> Builder {
         Builder::from_input(derive).expect("Builder::from_input")
     }
@@ -754,7 +762,7 @@ pub mod tests {
         });
         assert_eq!(
             builder.properties.into,
-            Setting::disable(Span::call_site()),
+            Setting::disable(span()),
         );
     }
 
@@ -857,7 +865,7 @@ pub mod tests {
             struct Demo;
         });
 
-        assert_eq!(builder.default, Setting::enable((), Span::call_site()), "builder.default");
+        assert_eq!(builder.default, Setting::enable((), span()), "builder.default");
     }
 
     #[test]
@@ -868,7 +876,7 @@ pub mod tests {
             struct Demo;
         });
 
-        assert_eq!(builder.default, Setting::enable((), Span::call_site()), "builder.default")
+        assert_eq!(builder.default, Setting::enable((), span()), "builder.default")
     }
 
     #[test]
@@ -879,6 +887,62 @@ pub mod tests {
             struct Demo;
         });
 
-        assert_eq!(builder.default, Setting::disable(Span::call_site()), "builder.default")
+        assert_eq!(builder.default, Setting::disable(span()), "builder.default")
+    }
+
+    #[test]
+    fn builder_derive_fields_default_disabled() {
+        let builder = newbuilder(parse_quote! {
+            #[builder(fields(Default=!))]
+            struct Foobar {
+                foobar: usize,
+            }
+        });
+
+        assert_eq!(builder.properties.default, Setting::disable(span()), "builder.properties.default");
+
+        let mut properties = builder.properties.items.iter();
+        let mut property_opt = properties.next();
+        assert!(property_opt.is_some(), "builder.properties.items[0]");
+        let property = property_opt.unwrap();
+        assert_eq!(property.default, Setting::disable(span()), "builder.properties.items[0].default");
+
+        property_opt = properties.next();
+        assert!(property_opt.is_none(), "builder.properties.items[1]");
+    }
+
+    #[test]
+    fn builder_derive_fields_default_disabled_with_customized_fields() {
+        let builder = newbuilder(parse_quote! {
+            #[builder(fields(Default=!))]
+            struct Foobar {
+                foo: usize,
+                #[builder(Default)]
+                bar: usize,
+                baz: usize,
+            }
+        });
+
+        assert_eq!(builder.properties.default, Setting::disable(span()), "builder.properties.default");
+
+        let mut properties = builder.properties.items.iter();
+
+        let mut property_opt = properties.next();
+        assert!(property_opt.is_some(), "builder.properties.items[0]");
+        let mut property = property_opt.unwrap();
+        assert_eq!(property.default, Setting::disable(span()), "builder.properties.items[0].default");
+
+        property_opt = properties.next();
+        assert!(property_opt.is_some(), "builder.properties.items[1]");
+        property = property_opt.unwrap();
+        assert_eq!(property.default, Setting::enable((), span()), "builder.properties.items[1].default");
+
+        property_opt = properties.next();
+        assert!(property_opt.is_some(), "builder.properties.items[2]");
+        property = property_opt.unwrap();
+        assert_eq!(property.default, Setting::disable(span()), "builder.properties.items[2].default");
+
+        property_opt = properties.next();
+        assert!(property_opt.is_none(), "builder.properties.items[3]");
     }
 }
