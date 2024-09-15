@@ -4,6 +4,11 @@ Source: https://keepachangelog.com/
 
 ## [Unreleased]
 
+## [1.2.0] - 2024-09-15
+
+* **Crate**: https://crates.io/crates/macon/1.2.0
+* **Documentation**: https://docs.rs/macon/1.2.0/macon/
+
 ### Deprecated
 
 - Deprecate `Option=!` and `Into=!` for struct attribute `#[builder]` in favor of `fields(Option=!)` and `fields(Into=!)` (#32)
