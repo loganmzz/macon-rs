@@ -41,6 +41,11 @@ impl NamedBuilder {
         self
     }
 
+    pub fn option_optional<OPTION: ::core::convert::Into<PathBuf>>(mut self, option: ::core::option::Option<OPTION>) -> NamedBuilder {
+        self.option = option.map(::core::convert::Into::into);
+        self
+    }
+
     pub fn option<OPTION: ::core::convert::Into<PathBuf>>(mut self, option: OPTION) -> NamedBuilder {
         self.option = ::core::option::Option::Some(option.into());
         self
@@ -107,6 +112,10 @@ impl TupleBuilder {
         self.1 = ::core::option::Option::None;
         self
     }
+    pub fn set1_optional<V1: ::core::convert::Into<PathBuf>>(mut self, v1: ::core::option::Option<V1>) -> TupleBuilder {
+        self.1 = v1.map(::core::convert::Into::into);
+        self
+    }
 
     // impl_builder / impl_builder_build
     pub fn build(self) -> Tuple {
@@ -154,6 +163,21 @@ fn named_builder_build_full() {
 }
 
 #[test]
+fn named_builder_build_full_optional() {
+    let built = Named::builder()
+        .option_optional(Some("/tmp/builder_build_full/option"))
+        .mandatory("/tmp/builder_build_full/mandatory")
+        .build();
+    assert_eq!(
+        Named {
+            mandatory: PathBuf::from("/tmp/builder_build_full/mandatory"),
+            option: Some(PathBuf::from("/tmp/builder_build_full/option")),
+        },
+        built,
+    );
+}
+
+#[test]
 fn named_builder_build_partial_implicit() {
     let built = Named::builder()
         .mandatory("/tmp/builder_build_partial_implicit/mandatory")
@@ -181,11 +205,27 @@ fn named_builder_build_partial_explicit() {
         built,
     );
 }
+
 #[test]
 fn named_builder_into_full() {
     let built = Named::builder()
         .mandatory("/tmp/builder_into_full/mandatory")
         .option("/tmp/builder_into_full/option")
+        .into();
+    assert_eq!(
+        Named {
+            mandatory: PathBuf::from("/tmp/builder_into_full/mandatory"),
+            option: Some(PathBuf::from("/tmp/builder_into_full/option")),
+        },
+        built,
+    );
+}
+
+#[test]
+fn named_builder_into_full_optional() {
+    let built = Named::builder()
+        .mandatory("/tmp/builder_into_full/mandatory")
+        .option_optional(Some("/tmp/builder_into_full/option"))
         .into();
     assert_eq!(
         Named {
@@ -229,6 +269,21 @@ fn named_builder_into_partial_explicit() {
 fn tuple_builder_build_full() {
     let built = Tuple::builder()
         .set1("/tmp/builder_build_full/option")
+        .set0("/tmp/builder_build_full/mandatory")
+        .build();
+    assert_eq!(
+        Tuple(
+            PathBuf::from("/tmp/builder_build_full/mandatory"),
+            Some(PathBuf::from("/tmp/builder_build_full/option")),
+        ),
+        built,
+    );
+}
+
+#[test]
+fn tuple_builder_build_full_optional() {
+    let built = Tuple::builder()
+        .set1_optional(Some("/tmp/builder_build_full/option"))
         .set0("/tmp/builder_build_full/mandatory")
         .build();
     assert_eq!(
@@ -285,6 +340,21 @@ fn tuple_builder_into_full() {
 }
 
 #[test]
+fn tuple_builder_into_full_optional() {
+    let built = Tuple::builder()
+        .set0("/tmp/builder_into_full/mandatory")
+        .set1_optional(Some("/tmp/builder_into_full/option"))
+        .into();
+    assert_eq!(
+        Tuple(
+            PathBuf::from("/tmp/builder_into_full/mandatory"),
+            Some(PathBuf::from("/tmp/builder_into_full/option")),
+        ),
+        built,
+    );
+}
+
+#[test]
 fn tuple_builder_into_partial_implicit() {
     let built = Tuple::builder()
         .set0("/tmp/builder_into_partial_implicit/mandatory")
@@ -312,4 +382,3 @@ fn tuple_builder_into_partial_explicit() {
         built,
     );
 }
-

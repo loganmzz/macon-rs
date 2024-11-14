@@ -4,6 +4,11 @@ Source: https://keepachangelog.com/
 
 ## [Unreleased]
 
+### Added
+
+- Add `<field>_optional` setter with `Option<>` parameter for optional fields (#34)
+- Document `Builder` signature (#34)
+
 ## [1.2.0] - 2024-09-15
 
 * **Crate**: https://crates.io/crates/macon/1.2.0

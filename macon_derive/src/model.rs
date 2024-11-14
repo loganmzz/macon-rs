@@ -64,6 +64,7 @@ pub enum Setter {
     None,
     Keep,
     Default,
+    Optional,
 }
 
 #[derive(Debug,Default)]
@@ -345,6 +346,9 @@ impl Property {
     pub fn setter_none(&self) -> Ident {
         format_ident!("{}_none", self.setter())
     }
+    pub fn setter_optional(&self) -> Ident {
+        format_ident!("{}_optional", self.setter())
+    }
 
     pub fn setter_keep(&self) -> Ident {
         format_ident!("{}_keep", self.setter())
@@ -486,6 +490,20 @@ impl Property {
                     }
                     value
                 },
+                Setter::Optional => {
+                    let mut value = if ! self.into.is_disabled() {
+                        quote!(#ident.map(::core::convert::Into::into))
+                    } else {
+                        quote!(#ident)
+                    };
+                    if self.default.is_enabled() {
+                        value = quote!(::macon::Defaulting::Set(#value));
+                    }
+                    if self.struct_default.is_enabled() {
+                        value = quote!(::macon::Keeping::Set(#value));
+                    }
+                    value
+                }
             }
         } else {
             let id = self.id();
@@ -555,6 +573,13 @@ impl Property {
             Setter::None => quote!(::core::option::Option::None),
             Setter::Keep => quote!(::macon::Keeping::Keep),
             Setter::Default => quote!(::macon::Defaulting::Default),
+            Setter::Optional => {
+                let mut value = quote!(#ident);
+                if ! self.into.is_disabled() {
+                    value = quote!(#value.map(::core::convert::Into::into));
+                }
+                value
+            },
         };
         if ! self.is_required() {
             if setter != Setter::Keep {

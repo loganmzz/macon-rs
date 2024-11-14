@@ -58,19 +58,19 @@ impl ResultPanicGenerator {
             let setter = f.setter();
             let typevar = f.typevar();
             let ident = &f.ident;
+            let ty = f.ty_into();
+            let argtype = if ! f.into.is_disabled() {
+                typevar.to_token_stream()
+            } else {
+                ty.to_token_stream()
+            };
+            let generic = if ! f.into.is_disabled() {
+                quote!(#typevar: ::core::convert::Into<#ty>)
+            } else {
+                quote!()
+            };
             let setter_standard = {
                 let assign_standard = f.result_assign(Setter::Standard);
-                let ty = f.ty_into();
-                let argtype = if ! f.into.is_disabled() {
-                    typevar.to_token_stream()
-                } else {
-                    ty.to_token_stream()
-                };
-                let generic = if ! f.into.is_disabled() {
-                    quote!(#typevar: ::core::convert::Into<#ty>)
-                } else {
-                    quote!()
-                };
                 quote! {
                     pub fn #setter<#generic>(mut self, #ident: #argtype) -> Self {
                         #assign_standard
@@ -78,12 +78,19 @@ impl ResultPanicGenerator {
                     }
                 }
             };
-            let setter_none = if f.option.is_enabled() {
+            let setter_option = if f.option.is_enabled() {
                 let setter_none = f.setter_none();
                 let assign_none = f.result_assign(Setter::None);
+                let setter_optional = f.setter_optional();
+                let assign_optional= f.result_assign(Setter::Optional);
                 quote! {
                     pub fn #setter_none(mut self) -> Self {
                         #assign_none
+                        self
+                    }
+
+                    pub fn #setter_optional<#generic>(mut self, #ident: ::core::option::Option<#argtype>) -> Self {
+                        #assign_optional
                         self
                     }
                 }
@@ -116,7 +123,7 @@ impl ResultPanicGenerator {
             };
             quote! {
                 #setter_standard
-                #setter_none
+                #setter_option
                 #setter_keep
                 #setter_default
             }

@@ -72,7 +72,7 @@
 //! Enforce [`Default`] support for given field. See ["`Default` fields"](#default-fields).
 //!
 //! * **`Into=!`** <br/>
-//! Disable [`Into`][Into] for setter. See ["`Into` argument"](#into-argument).
+//! Disable [`Into`] for setter. See ["`Into` argument"](#into-argument).
 //!
 //! ### Features
 //!
@@ -104,6 +104,16 @@
 //!   string: String,
 //! }
 //!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn integer(self, value: i32) -> Self
+//! # { unimplemented!(); }
+//!   fn string(self, value: String) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> MyType
+//! # { unimplemented!();  }
+//! }
 //! ```
 //!
 //! #### Panic on `build()`
@@ -126,6 +136,17 @@
 //! struct MyType {
 //!   integer: i32,
 //!   path: PathBuf,
+//! }
+//!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn integer(self, value: i32) -> Self
+//! # { unimplemented!(); }
+//!   fn path(self, value: PathBuf) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> MyType
+//! # { unimplemented!(); }
 //! }
 //!
 //! let _mytype: MyType = MyType::builder()
@@ -153,6 +174,17 @@
 //! struct MyType {
 //!   integer: i32,
 //!   path: PathBuf,
+//! }
+//!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn integer(self, value: i32) -> Self
+//! # { unimplemented!(); }
+//!   fn path(self, value: PathBuf) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> Result<MyType, String>
+//! # { unimplemented!(); }
 //! }
 //!
 //! let myTypeResult: Result<MyType,String> = MyType::builder()
@@ -183,6 +215,19 @@
 //!   String,
 //! );
 //!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn set0(self, value: i32) -> Self
+//! # { unimplemented!(); }
+//!   fn set1(self, value: String) -> Self
+//! # { unimplemented!(); }
+//!   fn set2(self, value: String) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> MyTuple
+//! # { unimplemented!(); }
+//! }
+//!
 //! let _mytuple: MyTuple = MyTuple::builder()
 //!     .set0(42)
 //!     .set2(String::from("foobar"))
@@ -199,6 +244,31 @@
 //! #   Option<String>,
 //! #   String,
 //! # );
+//!
+//! // Builder signature
+//! # struct Builder0;
+//! impl Builder0 {
+//!   fn set(self, value: i32) -> Builder1
+//! # { unimplemented!(); }
+//! }
+//! # struct Builder1;
+//! impl Builder1 {
+//!   fn set(self, value: String) -> Builder2
+//! # { unimplemented!(); }
+//!   fn none(self) -> Builder2
+//! # { unimplemented!(); }
+//! }
+//! # struct Builder2;
+//! impl Builder2 {
+//!   fn set(self, value: String) -> Builder
+//! # { unimplemented!(); }
+//! }
+//! # struct Builder;
+//! impl Builder {
+//!   fn build(self) -> MyTuple
+//! # { unimplemented!(); }
+//! }
+//!
 //! let _mytuple: MyTuple = MyTuple::builder()
 //!     .set(42)
 //!     .none()
@@ -217,10 +287,23 @@
 //!
 //! ```
 //! # #[macro_use] extern crate macon;
-//! # #[derive(Builder)]
-//! # struct MyTuple(
-//! #   String,
-//! # );
+//! #[derive(Builder)]
+//! struct MyTuple(
+//!   String,
+//! );
+//!
+//! // Builder signature
+//! # struct Builder0;
+//! # struct Builder;
+//! impl Builder0 {
+//!   fn set<V: Into<String>>(self, value: V) -> Builder
+//! # { unimplemented!(); }
+//! }
+//! impl Builder {
+//!   fn build(self) -> MyTuple
+//! # { unimplemented!(); }
+//! }
+//!
 //! let _mytuple: MyTuple = MyTuple::builder()
 //!     .set("foobar")
 //!     .build();
@@ -237,6 +320,17 @@
 //!   no_into: String,
 //!   #[builder(Into)]     // Enable (only when disabled at struct level) for specific field
 //!   with_into: String,
+//! }
+//!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn no_into(value: String) -> Self
+//! # { unimplemented!(); }
+//!   fn with_into<V: Into<String>>(value: V) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> IntoSettings
+//! # { unimplemented!(); }
 //! }
 //!
 //! let built = IntoSettings::builder()
@@ -256,6 +350,15 @@
 //! struct DynTrait {
 //!   #[builder(Into=!)]
 //!   function: Box<dyn Fn(usize) -> usize>,
+//! }
+//!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn function(self, value: Box<dyn Fn(usize) -> usize>) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> DynTrait
+//! # { unimplemented!(); }
 //! }
 //!
 //! DynTrait::builder()
@@ -299,15 +402,26 @@
 //! #[derive(Builder)]
 //! struct WithOptional {
 //!   mandatory: String,
-//!   optional: Option<String>,
+//!   discretionary: Option<String>,
+//! }
+//!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn mandatory(self, value: String) -> Self
+//! # { unimplemented!(); }
+//!   fn discretionary(self, value: String) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> WithOptional
+//! # { unimplemented!(); }
 //! }
 //!
 //! let built = WithOptional::builder()
-//!   .optional("optional value")
+//!   .discretionary("optional value")
 //!   .mandatory("some value")
 //!   .build();
 //!
-//! assert_eq!(Some(String::from("optional value")), built.optional);
+//! assert_eq!(Some(String::from("optional value")), built.discretionary);
 //! ```
 //!
 //! You can set them explicitly to [`None`](https://doc.rust-lang.org/core/option/enum.Option.html#variant.None) with `<field>_none()` or `none()` for ordered setter:
@@ -317,15 +431,26 @@
 //! #[derive(Builder)]
 //! pub struct WithOptional {
 //!   mandatory: String,
-//!   optional: Option<String>,
+//!   discretionary: Option<String>,
+//! }
+//!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn mandatory<V: Into<String>>(self, value: V) -> Self
+//! # { unimplemented!(); }
+//!   fn discretionary_none(self) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> WithOptional
+//! # { unimplemented!(); }
 //! }
 //!
 //! let built = WithOptional::builder()
-//!   .optional_none()
+//!   .discretionary_none()
 //!   .mandatory("some value")
 //!   .build();
 //!
-//! assert_eq!(None, built.optional);
+//! assert_eq!(None, built.discretionary);
 //! ```
 //!
 //! <div class="warning">
@@ -347,14 +472,23 @@
 //! #[derive(Builder)]
 //! #[builder(Option=!)]
 //! struct DisableOptionStruct {
-//!   optional: Option<String>,
+//!   discretionary: Option<String>,
+//! }
+//!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn discretionary(self, value: Option<String>) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> DisableOptionStruct
+//! # { unimplemented!(); }
 //! }
 //!
 //! let built = DisableOptionStruct::builder()
-//!   .optional(Some(String::from("mandatory value")))
+//!   .discretionary(Some(String::from("mandatory value")))
 //!   .build();
 //!
-//! assert_eq!(Some(String::from("mandatory value")), built.optional);
+//! assert_eq!(Some(String::from("mandatory value")), built.discretionary);
 //! ```
 //!
 //! If you use an alias, use `#[builder(Option=<WrappedType>)]` at field level to enable [`Option`] support:
@@ -365,14 +499,49 @@
 //! #[derive(Builder)]
 //! struct AliasedOptionStruct {
 //!   #[builder(Option=String)]
-//!   optional: OptString,
+//!   discretionary: OptString,
+//! }
+//!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn discretionary(self, value: String) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> AliasedOptionStruct
+//! # { unimplemented!(); }
 //! }
 //!
 //! let built = AliasedOptionStruct::builder()
-//!   .optional("aliased value")
+//!   .discretionary("aliased value")
 //!   .build();
 //!
-//! assert_eq!(Some(String::from("aliased value")), built.optional);
+//! assert_eq!(Some(String::from("aliased value")), built.discretionary);
+//! ```
+//!
+//! If you are already dealing with [`Option`], use `<field>_optional` or `optional` for ordered setter:
+//!
+//! ```
+//! # #[macro_use] extern crate macon;
+//! #[derive(Builder)]
+//! struct WithOptional {
+//!   discretionary: Option<String>,
+//! }
+//!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn discretionary_optional(self, value: Option<String>) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> Self
+//! # { unimplemented!(); }
+//! }
+//!
+//! let discretionary = Some("any");
+//! let built = WithOptional::builder()
+//!   .discretionary_optional(discretionary)
+//!   .build();
+//!
+//! assert_eq!(Some(String::from("any")), built.discretionary);
 //! ```
 //!
 //! #### `Default` struct
@@ -473,6 +642,28 @@
 //! #         }
 //! #     }
 //! # }
+//!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn integer<V: Into<usize>>(self, value: V) -> Self
+//! # { unimplemented!(); }
+//!   fn integer_keep(self) -> Self
+//! # { unimplemented!(); }
+//!   fn string<V: Into<String>>(self, value: V) -> Self
+//! # { unimplemented!(); }
+//!   fn string_keep(self) -> Self
+//! # { unimplemented!(); }
+//!   fn optional<V: Into<String>>(self, value: V) -> Self
+//! # { unimplemented!(); }
+//!   fn optional_none(self) -> Self
+//! # { unimplemented!(); }
+//!   fn optional_keep(self) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> CustomDefaultStruct
+//! # { unimplemented!(); }
+//! }
+//!
 //! let built = CustomDefaultStruct::builder()
 //!   .integer_keep()
 //!   .string("overriden")
@@ -509,6 +700,19 @@
 //!   integer: usize,
 //!   string: String,
 //!   optional: Option<String>,
+//! }
+//!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn integer<V: Into<usize>>(self, value: V) -> Self
+//! # { unimplemented!(); }
+//!   fn integer_default(self) -> Self
+//! # { unimplemented!(); }
+//!   fn string<V: Into<String>>(self, value: V) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> WithDefaultFields
+//! # { unimplemented!(); }
 //! }
 //!
 //! let built = WithDefaultFields::builder()
@@ -594,6 +798,17 @@
 //! struct ExplicitDefaultOnField {
 //!   #[builder(Default)]
 //!   boxed: Box<usize>,
+//! }
+//!
+//! // Builder signature
+//! # struct Builder;
+//! impl Builder {
+//!   fn boxed<V: Into<Box<usize>>>(self, value: V) -> Self
+//! # { unimplemented!(); }
+//!   fn boxed_default(self) -> Self
+//! # { unimplemented!(); }
+//!   fn build(self) -> ExplicitDefaultOnField
+//! # { unimplemented!(); }
 //! }
 //!
 //! let built = ExplicitDefaultOnField::builder()
