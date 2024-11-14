@@ -104,6 +104,13 @@ struct MyType {
   integer: i32,
   string: String,
 }
+
+// Builder signature
+impl Builder {
+  fn integer(self, value: i32) -> Self
+  fn string(self, value: String) -> Self
+  fn build(self) -> MyType
+}
 ```
 
 #### Panic on `build()`
@@ -128,6 +135,13 @@ use std::path::PathBuf;
 struct MyType {
   integer: i32,
   path: PathBuf,
+}
+
+// Builder signature
+impl Builder {
+  fn integer(self, value: i32) -> Self
+  fn path(self, value: PathBuf) -> Self
+  fn build(self) -> MyType
 }
 
 let _mytype: MyType = MyType::builder()
@@ -159,6 +173,13 @@ struct MyType {
   string: String,
 }
 
+// Builder signature
+impl Builder {
+  fn integer(self, value: i32) -> Self
+  fn path(self, value: PathBuf) -> Self
+  fn build(self) -> Result<MyType, String>
+}
+
 let myTypeResult: Result<MyType,String> = MyType::builder()
     .integer(42)
     .build();
@@ -188,6 +209,14 @@ struct MyTuple(
   String,
 );
 
+// Builder signature
+impl Builder {
+  fn set0(self, value: i32) -> Self
+  fn set1(self, value: String) -> Self
+  fn set2(self, value: String) -> Self
+  fn build(self) -> MyTuple
+}
+
 let _mytuple: MyTuple = MyTuple::builder()
     .set0(42)
     .set2(String::from("foobar"))
@@ -205,6 +234,22 @@ struct MyTuple(
   Option<String>,
   String,
 );
+
+// Builder signature
+impl Builder0 {
+  fn set(self, value: i32) -> Builder1
+}
+impl Builder1 {
+  fn set(self, value: String) -> Builder2
+  fn none(self) -> Builder2
+}
+impl Builder2 {
+  fn set(self, value: String) -> Builder
+}
+impl Builder {
+  fn build(self) -> MyTuple
+}
+
 let _mytuple: MyTuple = MyTuple::builder()
     .set(42)
     .none()
@@ -228,6 +273,15 @@ Setter function argument is generic over [`Into`][Into] to ease conversion (espe
 struct MyTuple(
   String,
 );
+
+// Builder signature
+impl Builder0 {
+  fn set<V: Into<String>>(self, value: V) -> Builder
+}
+impl Builder {
+  fn build(self) -> MyTuple
+}
+
 let _mytuple: MyTuple = MyTuple::builder()
     .set("foobar")
     .build();
@@ -245,6 +299,14 @@ struct IntoSettings {
   no_into: String,
   #[builder(Into)]     // Enable (only when disabled at struct level) for specific field
   with_into: String,
+}
+
+// Builder signature
+# struct Builder;
+impl Builder {
+  fn no_into(value: String) -> Self
+  fn with_into<V: Into<String>>(value: V) -> Self
+  fn build(self) -> IntoSettings
 }
 
 let built = IntoSettings::builder()
@@ -265,6 +327,12 @@ This feature is required to use with [`dyn` trait](https://doc.rust-lang.org/boo
 struct DynTrait {
   #[builder(Into=!)]
   function: Box<dyn Fn(usize) -> usize>,
+}
+
+// Builder signature
+impl Builder {
+  fn function(self, value: Box<dyn Fn(usize) -> usize>) -> Self
+  fn build(self) -> DynTrait
 }
 
 DynTrait::builder()
@@ -310,15 +378,22 @@ Setter argument are still generic over [`Into`][Into] but for wrapped type. No n
 #[derive(Builder)]
 struct WithOptional {
   mandatory: String,
-  optional: Option<String>,
+  discretionary: Option<String>,
+}
+
+// Builder signature
+impl Builder {
+  fn mandatory(self, value: String) -> Self
+  fn discretionary(self, value: String) -> Self
+  fn build(self) -> WithOptional
 }
 
 let built = WithOptional::builder()
-  .optional("optional value")
+  .discretionary("optional value")
   .mandatory("some value")
   .build();
 
-assert_eq!(Some(String::from("optional value")), built.optional);
+assert_eq!(Some(String::from("optional value")), built.discretionary);
 ```
 
 You can set them explicitly to [`None`][None] with `<field>_none()` or `none()` for ordered setter:
@@ -329,15 +404,22 @@ You can set them explicitly to [`None`][None] with `<field>_none()` or `none()` 
 #[derive(Builder)]
 pub struct WithOptional {
   mandatory: String,
-  optional: Option<String>,
+  discretionary: Option<String>,
+}
+
+// Builder signature
+impl Builder {
+  fn mandatory<V: Into<String>>(self, value: V) -> Self
+  fn discretionary_none(self) -> Self
+  fn build(self) -> WithOptional
 }
 
 let built = WithOptional::builder()
-  .optional_none()
+  .discretionary_none()
   .mandatory("some value")
   .build();
 
-assert_eq!(None, built.optional);
+assert_eq!(None, built.discretionary);
 ```
 
 <div class="warning">
@@ -360,14 +442,20 @@ You can disable [`Option`][Option] support by using `#[builder(Option=!)]` at st
 #[derive(Builder)]
 #[builder(Option=!)]
 struct DisableOptionStruct {
-  optional: Option<String>,
+  discretionary: Option<String>,
+}
+
+// Builder signature
+impl Builder {
+  fn discretionary(self, value: Option<String>) -> Self
+  fn build(self) -> DisableOptionStruct
 }
 
 let built = DisableOptionStruct::builder()
-  .optional(Some(String::from("mandatory value")))
+  .discretionary(Some(String::from("mandatory value")))
   .build();
 
-assert_eq!(Some(String::from("mandatory value")), built.optional);
+assert_eq!(Some(String::from("mandatory value")), built.discretionary);
 ```
 
 If you use an alias, use `#[builder(Option=<WrappedType>)]` at field level to enable [`Option`][Option] support:
@@ -379,14 +467,44 @@ type OptString = Option<String>;
 #[derive(Builder)]
 struct AliasedOptionStruct {
   #[builder(Option=String)]
-  optional: OptString,
+  discretionary: OptString,
+}
+
+// Builder signature
+impl Builder {
+  fn discretionary(self, value: String) -> Self
+  fn build(self) -> AliasedOptionStruct
 }
 
 let built = AliasedOptionStruct::builder()
-  .optional("aliased value")
+  .discretionary("aliased value")
   .build();
 
-assert_eq!(Some(String::from("aliased value")), built.optional);
+assert_eq!(Some(String::from("aliased value")), built.discretionary);
+```
+
+If you are already dealing with `Option`, use `<field>_optional` or `optional` for ordered setter:
+
+```rust
+#[macro_use] extern crate macon;
+
+#[derive(Builder)]
+struct WithOptional {
+  discretionary: Option<String>,
+}
+
+// Builder signature
+impl Builder {
+  fn discretionary_optional(self, value: Option<String>) -> Self
+  fn build(self) -> Self
+}
+
+let discretionary = Some("any");
+let built = WithOptional::builder()
+  .discretionary_optional(discretionary)
+  .build();
+
+assert_eq!(Some(String::from("any")), built.discretionary);
 ```
 
 #### `Default` struct
@@ -481,6 +599,18 @@ assert_eq!(
 You can keep default value (from default built instance) explicitly with `<field>_keep()` or `keep()` for ordered setter:
 
 ```rust
+// Builder signature
+impl Builder {
+  fn integer<V: Into<usize>>(self, value: V) -> Self
+  fn integer_keep(self) -> Self
+  fn string<V: Into<String>>(self, value: V) -> Self
+  fn string_keep(self) -> Self
+  fn optional<V: Into<String>>(self, value: V) -> Self
+  fn optional_none(self) -> Self
+  fn optional_keep(self) -> Self
+  fn build(self) -> CustomDefaultStruct
+}
+
 let built = CustomDefaultStruct::builder()
   .integer_keep()
   .string("overriden")
@@ -518,6 +648,14 @@ struct WithDefaultFields {
   integer: usize,
   string: String,
   optional: Option<String>,
+}
+
+// Builder signature
+impl Builder {
+  fn integer<V: Into<usize>>(self, value: V) -> Self
+  fn integer_default(self) -> Self
+  fn string<V: Into<String>>(self, value: V) -> Self
+  fn build(self) -> WithDefaultFields
 }
 
 let built = WithDefaultFields::builder()
@@ -605,6 +743,13 @@ If you use an alias or unsupported type, use `#[builder(Default)]` at field leve
 struct ExplicitDefaultOnField {
   #[builder(Default)]
   boxed: Box<usize>,
+}
+
+// Builder signature
+impl Builder {
+  fn boxed<V: Into<Box<usize>>>(self, value: V) -> Self
+  fn boxed_default(self) -> Self
+  fn build(self) -> ExplicitDefaultOnField
 }
 
 let built = ExplicitDefaultOnField::builder()

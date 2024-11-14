@@ -78,21 +78,23 @@ impl StateGenerator {
         let struct_state_from = self.properties().typestate_state(field, false, false);
         let struct_state_to = self.properties().typestate_state(field, false, true);
 
+
+        let ident = &field.ident;
+        let into_type = field.ty_into();
+        let argtype = if ! field.into.is_disabled() {
+            field.typevar().to_token_stream()
+        } else {
+            field.ty.to_token_stream()
+        };
+        let generic = if ! field.into.is_disabled() {
+            quote!(<#argtype: ::core::convert::Into<#into_type>>)
+        } else {
+            quote!()
+        };
+
         let setter_standard = {
             let setter_standard = field.setter();
-            let argtype = if ! field.into.is_disabled() {
-                field.typevar().to_token_stream()
-            } else {
-                field.ty.to_token_stream()
-            };
-            let ident = &field.ident;
-            let into_type = field.ty_into();
             let fields_standard = self.properties().typestate_assign(field, Setter::Standard);
-            let generic = if ! field.into.is_disabled() {
-                quote!(<#argtype: ::core::convert::Into<#into_type>>)
-            } else {
-                quote!()
-            };
             quote! {
                 pub fn #setter_standard #generic(self, #ident: #argtype) -> #builder_name<#struct_state_to> {
                     #builder_name #fields_standard
@@ -100,12 +102,23 @@ impl StateGenerator {
             }
         };
 
-        let setter_none = if field.option.is_enabled() {
+        let setter_option = if field.option.is_enabled() {
             let setter_none = field.setter_none();
             let fields_none = self.properties().typestate_assign(field, Setter::None);
+            let setter_optional = field.setter_optional();
+            let generic = if ! field.into.is_disabled() {
+                quote!(<#argtype: ::core::convert::Into<#into_type>>)
+            } else {
+                quote!()
+            };
+            let fields_optional = self.properties().typestate_assign(field, Setter::Optional);
             quote! {
                 pub fn #setter_none(self) -> #builder_name<#struct_state_to> {
                     #builder_name #fields_none
+                }
+
+                pub fn #setter_optional #generic(self, #ident: ::core::option::Option<#argtype>) -> #builder_name<#struct_state_to> {
+                    #builder_name #fields_optional
                 }
             }
         } else {
@@ -136,7 +149,7 @@ impl StateGenerator {
         let mut impl_setter = quote! {
             impl<#impl_state> #builder_name<#struct_state_from> {
                 #setter_standard
-                #setter_none
+                #setter_option
                 #setter_keep
                 #setter_default
             }
@@ -144,22 +157,26 @@ impl StateGenerator {
         if self.builder.is_tuple {
             let struct_state_from_ordered = self.properties().typestate_state(field, true, false);
             let struct_state_to_ordered = self.properties().typestate_state(field, true, true);
+            let typevar = field.typevar();
+            let into_type = field.ty_into();
+            let ident = &field.ident;
             let setter_standard_ordered = {
                 let setter_standard = field.setter();
-                let typevar = field.typevar();
-                let ident = &field.ident;
-                let into_type = field.ty_into();
                 quote! {
                     pub fn set<#typevar: ::core::convert::Into<#into_type>>(self, #ident: #typevar) -> #builder_name<#struct_state_to_ordered> {
                         self.#setter_standard(#ident)
                     }
                 }
             };
-            let setter_none_ordered = if field.option.is_enabled() {
+            let setter_option_ordered = if field.option.is_enabled() {
                 let setter_none = field.setter_none();
+                let setter_optional = field.setter_optional();
                 quote! {
                     pub fn none(self) -> #builder_name<#struct_state_to_ordered> {
                         self.#setter_none()
+                    }
+                    pub fn optional<#typevar: ::core::convert::Into<#into_type>>(self, #ident: ::core::option::Option<#typevar>) -> #builder_name<#struct_state_to_ordered> {
+                        self.#setter_optional(#ident)
                     }
                 }
             } else {
@@ -190,7 +207,7 @@ impl StateGenerator {
 
                 impl #builder_name<#struct_state_from_ordered> {
                     #setter_standard_ordered
-                    #setter_none_ordered
+                    #setter_option_ordered
                     #setter_keep_ordered
                     #setter_default_ordered
                 }
