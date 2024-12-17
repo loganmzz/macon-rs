@@ -4,6 +4,11 @@ Source: https://keepachangelog.com/
 
 ## [Unreleased]
 
+## [1.3.0] - 2024-12-17
+
+* **Crate**: https://crates.io/crates/macon/1.3.0
+* **Documentation**: https://docs.rs/macon/1.3.0/macon/
+
 ### Added
 
 - Add `<field>_optional` setter with `Option<>` parameter for optional fields (#34)
