@@ -14,6 +14,8 @@ mod common;
 mod config;
 mod model;
 mod generators;
+#[cfg(test)]
+mod test;
 
 /// Derive macro to generate builder for your structs. See crate documentation for usage.
 ///

@@ -1,0 +1,59 @@
+settingsets:
+- id: "foobar"
+  criteria:
+  - includes:
+      keys:
+        equals:
+        - foo
+        - bar
+      struct_keys:
+        equals:
+        - foo
+        - bar
+      field_keys:
+        equals:
+        - foo
+        - bar
+      struct_name:
+        equals: "Foobar"
+      field_name:
+        equals: "foobar"
+      field_type:
+        equals: "Foobar"
+  settings:
+    struct:
+      Default: true
+    field:
+      Option: false
+      Default: true
+      Into: false
+- criteria:
+  - excludes:
+      keys:
+        contains:
+        - foo
+        - bar
+      struct_keys:
+        contains:
+        - foo
+        - bar
+      field_keys:
+        contains:
+        - foo
+        - bar
+      struct_name:
+        matches: "Foobar"
+      field_name:
+        matches: "foobar"
+      field_type:
+        matches: "Foobar"
+  settings:
+    struct:
+      Default: false
+    field:
+      Option: "!"
+      Default: false
+      Into: "!"
+- settings:
+    field:
+      Option: "bool"

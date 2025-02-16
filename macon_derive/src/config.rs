@@ -7,7 +7,7 @@ use std::{
     sync::OnceLock,
 };
 use anyhow::Context;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use syn::{
     Path,
     Type,
@@ -165,6 +165,7 @@ impl Configuration {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct CrateConfiguration {
     #[serde(default)]
     #[allow(dead_code)]
@@ -173,9 +174,12 @@ struct CrateConfiguration {
     pub default_types: TypeSetConfiguration,
     #[serde(default)]
     pub option_types: TypeSetConfiguration,
+    #[serde(default)]
+    pub settingsets: Vec<SettingSetConfiguration>,
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct TypeSetConfiguration {
     #[serde(default = "TypeSetConfiguration::default_defaults")]
     pub defaults: bool,
@@ -183,6 +187,99 @@ struct TypeSetConfiguration {
     pub includes: Vec<String>,
     #[serde(default)]
     pub excludes: Vec<String>,
+}
+
+#[derive(Debug,Default,Deserialize,PartialEq)]
+#[serde(deny_unknown_fields)]
+struct SettingSetConfiguration {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub criteria: Vec<SettingSetCriterionIXWrapper>,
+    #[serde(default)]
+    pub settings: SettingSetValues,
+}
+
+#[derive(Debug,Deserialize,PartialEq,Serialize)]
+#[serde(transparent)]
+struct SettingSetCriterionIXWrapper(
+    #[serde(with = "serde_yaml::with::singleton_map")]
+    pub SettingSetCriterionIX
+);
+#[derive(Debug,Deserialize,PartialEq,Serialize)]
+#[serde(deny_unknown_fields,rename_all="lowercase")]
+enum SettingSetCriterionIX {
+    Includes(SettingSetCriterion),
+    Excludes(SettingSetCriterion),
+}
+
+#[derive(Debug,Default,Deserialize,PartialEq,Serialize)]
+#[serde(deny_unknown_fields)]
+struct SettingSetCriterion {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub keys: Option<SetFilterWrapper>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub struct_keys: Option<SetFilterWrapper>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field_keys: Option<SetFilterWrapper>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub struct_name: Option<StringFilterWrapper>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field_name: Option<StringFilterWrapper>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field_type: Option<StringFilterWrapper>,
+}
+
+#[derive(Debug,Deserialize,PartialEq,Serialize)]
+#[serde(transparent)]
+struct SetFilterWrapper(
+    #[serde(with = "serde_yaml::with::singleton_map")]
+    pub SetFilter
+);
+#[derive(Debug,Deserialize,PartialEq,Serialize)]
+#[serde(deny_unknown_fields,rename_all="lowercase")]
+enum SetFilter {
+    Equals(Vec<String>),
+    Contains(Vec<String>),
+}
+#[derive(Debug,Deserialize,PartialEq,Serialize)]
+#[serde(transparent)]
+struct StringFilterWrapper(
+    #[serde(with = "serde_yaml::with::singleton_map")]
+    pub StringFilter
+);
+#[derive(Debug,Deserialize,PartialEq,Serialize)]
+#[serde(deny_unknown_fields,rename_all="lowercase")]
+enum StringFilter {
+    Equals(String),
+    Matches(String),
+}
+
+#[derive(Debug,Default,Deserialize,PartialEq)]
+#[serde(deny_unknown_fields)]
+struct SettingSetValues {
+    #[serde(default,rename="struct")]
+    pub struct_: SettingSetStructValues,
+    #[serde(default)]
+    pub field: SettingSetFieldValues,
+}
+
+#[derive(Debug,Default,Deserialize,PartialEq)]
+#[serde(deny_unknown_fields,rename_all="PascalCase")]
+struct SettingSetStructValues {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<bool>,
+}
+
+#[derive(Debug,Default,Deserialize,PartialEq)]
+#[serde(deny_unknown_fields,rename_all="PascalCase")]
+struct SettingSetFieldValues {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub option: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub into: Option<String>,
 }
 
 impl TypeSetConfiguration {
@@ -201,13 +298,71 @@ impl Default for TypeSetConfiguration {
     }
 }
 
+impl SettingSetCriterion {
+    pub fn includes(criterion: SettingSetCriterion) -> SettingSetCriterionIXWrapper {
+        SettingSetCriterionIXWrapper(
+            SettingSetCriterionIX::Includes(criterion)
+        )
+    }
+    pub fn excludes(criterion: SettingSetCriterion) -> SettingSetCriterionIXWrapper {
+        SettingSetCriterionIXWrapper(
+            SettingSetCriterionIX::Excludes(criterion)
+        )
+    }
+}
+
+impl SetFilter {
+    pub fn equals<S: ToString>(values: Vec<S>) -> Option<SetFilterWrapper> {
+        Some(
+            SetFilterWrapper(
+                SetFilter::Equals(
+                    values.into_iter()
+                          .map(|s| s.to_string())
+                          .collect()
+                )
+            )
+        )
+    }
+    pub fn contains<S: ToString>(values: Vec<S>) -> Option<SetFilterWrapper> {
+        Some(
+            SetFilterWrapper(
+                SetFilter::Contains(
+                    values.into_iter()
+                          .map(|s| s.to_string())
+                          .collect()
+                )
+            )
+        )
+    }
+}
+
+impl StringFilter {
+    pub fn equals<S: ToString>(value: S) -> Option<StringFilterWrapper> {
+        Some(
+            StringFilterWrapper(
+                StringFilter::Equals(value.to_string())
+            )
+        )
+    }
+    pub fn matches<S: ToString>(value: S) -> Option<StringFilterWrapper> {
+        Some(
+            StringFilterWrapper(
+                StringFilter::Matches(value.to_string())
+            )
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use serde_yaml;
     use syn::{
         Type,
         parse_quote,
     };
-    use super::Configuration;
+    use crate::config::{SetFilter, SettingSetConfiguration, SettingSetCriterion, SettingSetCriterionIXWrapper, StringFilter};
+
+    use super::*;
 
     macro_rules! assert_defaults {
         (!$($tt:tt)*) => {{
@@ -268,4 +423,188 @@ mod tests {
     fn default_types_random() {
         assert_defaults!(!Random)
     }
+
+    #[test]
+    fn parse_settingssets_empty() {
+        let config: CrateConfiguration = crate::test::data::load_yaml("config/parse", "settingssets_empty");
+        assert_eq!(
+            0,
+            config.settingsets.len(),
+            "settingssets.len",
+        );
+    }
+
+    #[test]
+    fn parse_criterionix() {
+        let instance = SettingSetCriterionIXWrapper(
+            SettingSetCriterionIX::Includes(Default::default())
+        );
+        let format = serde_yaml::to_string(&instance).unwrap();
+        assert_eq!(
+            r#"
+includes: {}
+"#.trim_start(),
+            format,
+        );
+
+        let input = r#"
+includes: {}
+"#;
+        let parsed: SettingSetCriterionIXWrapper = serde_yaml::from_str(input).unwrap();
+        assert_eq!(
+            SettingSetCriterionIXWrapper(
+                SettingSetCriterionIX::Includes(SettingSetCriterion {
+                    keys: None,
+                    struct_keys: None,
+                    field_keys: None,
+                    struct_name: None,
+                    field_name: None,
+                    field_type: None,
+                })
+            ),
+            parsed,
+        );
+    }
+
+    #[test]
+    fn parse_settingssets_default() {
+        let config: CrateConfiguration = crate::test::data::load_yaml("config/parse", "settingssets_default");
+
+        let mut settingsets = config.settingsets.iter();
+        let settingset = settingsets.next();
+        assert!(
+            settingset.is_some(),
+            "settingsets[0]",
+        );
+        let settingset = settingset.unwrap();
+        assert_eq!(
+            "",
+            settingset.id,
+            "settingsets[0].id",
+        );
+        let mut criteria = settingset.criteria.iter();
+        let criterionix = criteria.next();
+        assert_eq!(
+            None,
+            criterionix,
+            "settingsets[0].criteria[0]",
+        );
+        assert_eq!(
+            None,
+            settingset.settings.struct_.default,
+            "settingsets[0].settings.struct.Default",
+        );
+        assert_eq!(
+            None,
+            settingset.settings.field.option,
+            "settingsets[0].settings.field.Option",
+        );
+        assert_eq!(
+            None,
+            settingset.settings.field.default,
+            "settingsets[0].settings.field.Default",
+        );
+        assert_eq!(
+            None,
+            settingset.settings.field.into,
+            "settingsets[0].settings.field.Into",
+        );
+
+        let settingset = settingsets.next();
+        assert_eq!(
+            None,
+            settingset,
+            "settingsets[1]",
+        );
+    }
+
+    #[test]
+    fn parse_settingssets_demo() {
+        let config: CrateConfiguration = crate::test::data::load_yaml("config/parse", "settingssets_demo");
+
+        assert_eq!(
+            vec![
+                SettingSetConfiguration {
+                    id: "foobar".to_owned(),
+                    criteria: vec![
+                        SettingSetCriterion::includes(SettingSetCriterion {
+                            keys: SetFilter::equals(vec![
+                                "foo",
+                                "bar",
+                            ]),
+                            struct_keys: SetFilter::equals(vec![
+                                "foo",
+                                "bar",
+                            ]),
+                            field_keys: SetFilter::equals(vec![
+                                "foo",
+                                "bar",
+                            ]),
+                            struct_name: StringFilter::equals("Foobar"),
+                            field_name: StringFilter::equals("foobar"),
+                            field_type: StringFilter::equals("Foobar"),
+                        }),
+                    ],
+                    settings: SettingSetValues {
+                        struct_: SettingSetStructValues {
+                            default: Some(true),
+                        },
+                        field: SettingSetFieldValues {
+                            option: Some("false".to_owned()),
+                            default: Some(true),
+                            into: Some("false".to_owned()),
+                        },
+                    },
+                },
+                SettingSetConfiguration {
+                    id: "".to_owned(),
+                    criteria: vec![
+                        SettingSetCriterion::excludes(SettingSetCriterion {
+                            keys: SetFilter::contains(vec![
+                                "foo",
+                                "bar",
+                            ]),
+                            struct_keys: SetFilter::contains(vec![
+                                "foo",
+                                "bar",
+                            ]),
+                            field_keys: SetFilter::contains(vec![
+                                "foo",
+                                "bar",
+                            ]),
+                            struct_name: StringFilter::matches("Foobar"),
+                            field_name: StringFilter::matches("foobar"),
+                            field_type: StringFilter::matches("Foobar"),
+                        }),
+                    ],
+                    settings: SettingSetValues {
+                        struct_: SettingSetStructValues {
+                            default: Some(false),
+                        },
+                        field: SettingSetFieldValues {
+                            option: Some("!".to_owned()),
+                            default: Some(false),
+                            into: Some("!".to_owned()),
+                        },
+                    },
+                },
+                SettingSetConfiguration {
+                    id: "".to_owned(),
+                    criteria: vec![],
+                    settings: SettingSetValues {
+                        struct_: SettingSetStructValues {
+                            default: None,
+                        },
+                        field: SettingSetFieldValues {
+                            option: Some("bool".to_owned()),
+                            default: None,
+                            into: None,
+                        },
+                    },
+                },
+            ],
+            config.settingsets,
+        );
+    }
+
 }
