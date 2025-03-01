@@ -164,122 +164,189 @@ impl Configuration {
     }
 }
 
+/// Crate configuration loaded from `macon-config.<yaml|yaml|json>`.
+///
+/// It defines default/option type set, and setting sets.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CrateConfiguration {
+    /// Configuration version. Ignored.
     #[serde(default)]
     #[allow(dead_code)]
     pub version: String,
+    /// Type sets for [`Default`].
     #[serde(default)]
     pub default_types: TypeSetConfiguration,
+    /// Type sets for [`Option`].
     #[serde(default)]
     pub option_types: TypeSetConfiguration,
+    /// Setting sets
     #[serde(default)]
     pub settingsets: Vec<SettingSetConfiguration>,
 }
 
+/// Type sets that should be included/excluded
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct TypeSetConfiguration {
+    /// Specify if default type sets must be used.
     #[serde(default = "TypeSetConfiguration::default_defaults")]
     pub defaults: bool,
+    /// Type pathes that should be included
     #[serde(default)]
     pub includes: Vec<String>,
+    /// Type pathes that should be excluded (from default ones)
     #[serde(default)]
     pub excludes: Vec<String>,
 }
 
+/// Setting set with an `id` (for debug purpose) defined by criteria and settings to apply.
 #[derive(Debug,Default,Deserialize,PartialEq)]
 #[serde(deny_unknown_fields)]
 struct SettingSetConfiguration {
+    /// Identifier (printed in debug mode)
     #[serde(default)]
     pub id: String,
+    /// Conditions. If it begins by:
+    ///
+    /// * [`includes`](SettingSetCriterionIX::Includes), none is included by default,
+    /// * [`excludes`](SettingSetCriterionIX::Excludes), everything is included by default.
     #[serde(default)]
     pub criteria: Vec<SettingSetCriterionIXWrapper>,
+    /// Settings.
     #[serde(default)]
     pub settings: SettingSetValues,
 }
 
+/// Wrapper around [`SettingSetCriterionIX`] to use [`serde_yaml::with::singleton_map`].
 #[derive(Debug,Deserialize,PartialEq,Serialize)]
 #[serde(transparent)]
 struct SettingSetCriterionIXWrapper(
+    // Wrapped.
     #[serde(with = "serde_yaml::with::singleton_map")]
     pub SettingSetCriterionIX
 );
+/// Exclusion/Inclusion conditions.
 #[derive(Debug,Deserialize,PartialEq,Serialize)]
 #[serde(deny_unknown_fields,rename_all="lowercase")]
 enum SettingSetCriterionIX {
+    // Include if match.
     Includes(SettingSetCriterion),
+    // Exclude if match.
     Excludes(SettingSetCriterion),
 }
 
+/// Criteria to match.
 #[derive(Debug,Default,Deserialize,PartialEq,Serialize)]
 #[serde(deny_unknown_fields)]
 struct SettingSetCriterion {
+    /// structs & fields can have key sets. It matches against the combine set of struct & field ones.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub keys: Option<SetFilterWrapper>,
+    /// it matches against keys defined at struct level.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub struct_keys: Option<SetFilterWrapper>,
+    /// it matches against keys defined at field level.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub field_keys: Option<SetFilterWrapper>,
+    /// it matches against the struct name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub struct_name: Option<StringFilterWrapper>,
+    /// it matches against the field name.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub field_name: Option<StringFilterWrapper>,
+    /// canonical string representation of field type tokens. As Rust macros only operate on full text / token, it can't match on full/resolved type pathes; only as text as found in source code.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub field_type: Option<StringFilterWrapper>,
 }
 
+/// Wrapper around [`SetFilter`] to use [`serde_yaml::with::singleton_map`].
 #[derive(Debug,Deserialize,PartialEq,Serialize)]
 #[serde(transparent)]
 struct SetFilterWrapper(
+    // Wrapped.
     #[serde(with = "serde_yaml::with::singleton_map")]
     pub SetFilter
 );
+/// Filter applicable to [`String`] sets.
 #[derive(Debug,Deserialize,PartialEq,Serialize)]
 #[serde(deny_unknown_fields,rename_all="lowercase")]
 enum SetFilter {
+    /// set of keys that must be strictly specified.
     Equals(Vec<String>),
+    /// sub-set of keys that must be specified.
     Contains(Vec<String>),
 }
+/// Wrapper around [`StringFilter`] to use [`serde_yaml::with::singleton_map`].
 #[derive(Debug,Deserialize,PartialEq,Serialize)]
 #[serde(transparent)]
 struct StringFilterWrapper(
+    /// Wrapped.
     #[serde(with = "serde_yaml::with::singleton_map")]
     pub StringFilter
 );
+/// Filter applicable to [`String`].
 #[derive(Debug,Deserialize,PartialEq,Serialize)]
 #[serde(deny_unknown_fields,rename_all="lowercase")]
 enum StringFilter {
+    /// string value that must equal.
     Equals(String),
+    /// regular expression that must [match](regex::Regex::is_match).
     Matches(String),
 }
 
+/// Settings to apply when match.
 #[derive(Debug,Default,Deserialize,PartialEq)]
 #[serde(deny_unknown_fields)]
 struct SettingSetValues {
+    /// struct settings.
     #[serde(default,rename="struct")]
     pub struct_: SettingSetStructValues,
+    /// field settings.
     #[serde(default)]
     pub field: SettingSetFieldValues,
 }
 
+/// Struct settings.
 #[derive(Debug,Default,Deserialize,PartialEq)]
 #[serde(deny_unknown_fields,rename_all="PascalCase")]
 struct SettingSetStructValues {
+    /// boolean indicating if struct derives Default. See [`Default` struct](macon).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default: Option<bool>,
 }
 
+/// Field settings.
 #[derive(Debug,Default,Deserialize,PartialEq)]
 #[serde(deny_unknown_fields,rename_all="PascalCase")]
 struct SettingSetFieldValues {
+    /// * `false` or `"!"` to disable [`Option`] support. See [`Option` fields](macon#option-fields).
+    /// * `<any string>` to enforce [`Option`] support. See [`Option` fields](macon#option-fields).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub option: Option<String>,
+    /// boolean indicating if field derives [`Default`]. See [`Default` fields](macon#default-fields).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default: Option<bool>,
+    /// Only `false` or `"!"` is supported. Disable [`Into`] for field setter. See [`Into` argument](macon#into-argument).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub into: Option<String>,
+}
+
+/// Describe struct to compute settings from setting sets.
+struct MatchingStruct<'a> {
+    // Struct keys.
+    keys: HashSet<&'a str>,
+    // Struct name.
+    name: &'a str,
+}
+/// Describe field to compute settings from setting sets.
+struct MatchingField<'a> {
+    // Field keys.
+    keys: HashSet<&'a str>,
+    // Field name.
+    name: &'a str,
+    // Canonical string representation of field type tokens. As Rust macros only operate on full text / token, it can't match on full/resolved type pathes; only as text as found in source code.
+    type_str: &'a str,
 }
 
 impl TypeSetConfiguration {
@@ -350,6 +417,30 @@ impl StringFilter {
                 StringFilter::Matches(value.to_string())
             )
         )
+    }
+}
+
+impl SettingSetValues {
+    pub fn overrides_with(mut self, overrides: Self) -> Self {
+        self.struct_ = self.struct_.overrides_with(overrides.struct_);
+        self.field   = self.field.overrides_with(overrides.field);
+        self
+    }
+}
+
+impl SettingSetStructValues {
+    pub fn overrides_with(mut self, overrides: Self) -> Self {
+        self.default = overrides.default.or(self.default);
+        self
+    }
+}
+
+impl SettingSetFieldValues {
+    pub fn overrides_with(mut self, overrides: Self) -> Self {
+        self.option = overrides.option.or(self.option);
+        self.default = overrides.default.or(self.default);
+        self.into = overrides.into.or(self.into);
+        self
     }
 }
 
@@ -605,6 +696,117 @@ includes: {}
             ],
             config.settingsets,
         );
+    }
+
+    #[test]
+    fn settingset_overrides_empty_empty() {
+        let base = SettingSetValues {
+            struct_: SettingSetStructValues {
+                default: None,
+            },
+            field: SettingSetFieldValues {
+                option: None,
+                default: None,
+                into: None,
+            },
+        };
+        let overrides = SettingSetValues {
+            struct_: SettingSetStructValues {
+                default: None,
+            },
+            field: SettingSetFieldValues {
+                option: None,
+                default: None,
+                into: None,
+            },
+        };
+        assert_eq!(
+            SettingSetValues {
+                struct_: SettingSetStructValues {
+                    default: None,
+                },
+                field: SettingSetFieldValues {
+                    option: None,
+                    default: None,
+                    into: None,
+                },
+            },
+            base.overrides_with(overrides),
+        )
+    }
+
+    #[test]
+    fn settingset_overrides_empty_struct_default() {
+        let base = SettingSetValues {
+            struct_: SettingSetStructValues {
+                default: None,
+            },
+            field: SettingSetFieldValues {
+                option: None,
+                default: None,
+                into: None,
+            },
+        };
+        let overrides = SettingSetValues {
+            struct_: SettingSetStructValues {
+                default: Some(true),
+            },
+            field: SettingSetFieldValues {
+                option: None,
+                default: None,
+                into: None,
+            },
+        };
+        assert_eq!(
+            SettingSetValues {
+                struct_: SettingSetStructValues {
+                    default: Some(true),
+                },
+                field: SettingSetFieldValues {
+                    option: None,
+                    default: None,
+                    into: None,
+                },
+            },
+            base.overrides_with(overrides),
+        )
+    }
+
+    #[test]
+    fn settingset_overrides_struct_not_default_struct_default() {
+        let base = SettingSetValues {
+            struct_: SettingSetStructValues {
+                default: Some(false),
+            },
+            field: SettingSetFieldValues {
+                option: None,
+                default: None,
+                into: None,
+            },
+        };
+        let overrides = SettingSetValues {
+            struct_: SettingSetStructValues {
+                default: Some(true),
+            },
+            field: SettingSetFieldValues {
+                option: None,
+                default: None,
+                into: None,
+            },
+        };
+        assert_eq!(
+            SettingSetValues {
+                struct_: SettingSetStructValues {
+                    default: Some(true),
+                },
+                field: SettingSetFieldValues {
+                    option: None,
+                    default: None,
+                    into: None,
+                },
+            },
+            base.overrides_with(overrides),
+        )
     }
 
 }
