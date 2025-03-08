@@ -1,0 +1,18 @@
+settingsets:
+- criteria:
+  - includes:
+      keys:
+        equals:
+        - "foo"
+        - "field"
+        - "struct"
+        - "struct_foo"
+        - "field_foo"
+        - "usize"
+  settings:
+    struct:
+      Default: true
+    field:
+      Option: "FieldOption"
+      Default: true
+      Into: "FieldInto"

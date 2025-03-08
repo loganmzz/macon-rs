@@ -1,0 +1,8 @@
+settingsets:
+- settings:
+    struct:
+      Default: true
+    field:
+      Option: "FieldOption"
+      Default: true
+      Into: "FieldInto"

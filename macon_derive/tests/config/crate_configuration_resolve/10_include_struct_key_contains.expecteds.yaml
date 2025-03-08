@@ -1,0 +1,30 @@
+Foo:
+  struct:
+    Default: true
+  field:
+    Option: "FieldOption"
+    Default: true
+    Into: "FieldInto"
+Foo.foo:
+  struct:
+    Default: true
+  field:
+    Option: "FieldOption"
+    Default: true
+    Into: "FieldInto"
+Foo.bar:
+  struct:
+    Default: true
+  field:
+    Option: "FieldOption"
+    Default: true
+    Into: "FieldInto"
+Foo.boo:
+  struct:
+    Default: true
+  field:
+    Option: "FieldOption"
+    Default: true
+    Into: "FieldInto"
+Bar: {}
+Bar.foo: {}

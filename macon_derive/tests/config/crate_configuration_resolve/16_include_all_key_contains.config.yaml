@@ -1,0 +1,13 @@
+settingsets:
+- criteria:
+  - includes:
+      keys:
+        contains:
+        - "foo"
+  settings:
+    struct:
+      Default: true
+    field:
+      Option: "FieldOption"
+      Default: true
+      Into: "FieldInto"
