@@ -16,7 +16,8 @@ use proc_macro2::{
 };
 use quote::{
     format_ident,
-    quote, ToTokens,
+    quote,
+    ToTokens,
 };
 use syn::spanned::Spanned;
 use syn::{

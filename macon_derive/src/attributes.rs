@@ -2,6 +2,10 @@ use crate::common::{
     ResultErrorContext,
     Setting,
 };
+use crate::config::{
+    SettingSetFieldValues,
+    SettingSetValues,
+};
 use std::collections::HashMap;
 use proc_macro2::Span;
 use syn::{
@@ -20,8 +24,7 @@ use syn::{
 #[derive(Debug, Default, PartialEq)]
 pub struct StructBuilder {
     mode: Setting<String>,
-    default: Setting<()>,
-    fields: StructBuilderFields,
+    settings: SettingSetValues,
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -51,18 +54,11 @@ impl StructBuilder {
         &mut self.mode
     }
 
-    pub fn default(&self) -> &Setting<()> {
-        &self.default
+    pub fn settings(&self) -> &SettingSetValues {
+        &self.settings
     }
-    pub fn default_mut(&mut self) -> &Setting<()> {
-        &mut self.default
-    }
-
-    pub fn fields(&self) -> &StructBuilderFields {
-        &self.fields
-    }
-    pub fn fields_mut(&mut self) -> &mut StructBuilderFields {
-        &mut self.fields
+    pub fn settings_mut(&mut self) -> &mut SettingSetValues {
+        &mut self.settings
     }
 
     pub fn from_input(derive: &DeriveInput) -> Result<Self> {
@@ -92,8 +88,9 @@ impl StructBuilder {
             } else if nested.path.is_ident("Option") {
                 //TODO proc_macro_diagnostic https://github.com/rust-lang/rust/issues/54140
                 eprintln!("WARNING: macon: Option at struct level be included in nested fields. e.g. `#[builder(fields(Option))]`");
-                self.fields.option = Setting::<()>::from_parse_nested_meta(nested)
+                let field_option = Setting::<()>::from_parse_nested_meta(nested)
                     .map_err_context("Unable to parse Option for struct builder attribute")?;
+                self.settings.field.option =
             } else if nested.path.is_ident("Default") {
                 self.default = Setting::<()>::from_parse_nested_meta(nested)
                     .map_err_context("Unable to parse Default for struct builder attribute")?;

@@ -572,7 +572,10 @@ mod tests {
         StringFilter,
     };
     use serde_yaml;
-    use syn::{parse_quote, token::Crate, Type};
+    use syn::{
+        parse_quote,
+        Type,
+    };
 
     use super::*;
 

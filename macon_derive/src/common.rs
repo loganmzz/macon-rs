@@ -1,4 +1,14 @@
+use std::{
+    fmt,
+};
 use proc_macro2::Span;
+use serde::{
+    de::{
+        Self,
+        Visitor,
+    },
+    Deserialize,
+};
 use syn::{
   Error,
   Result,
@@ -90,12 +100,27 @@ impl<T> Setting<T> {
   pub fn map<F,U>(self, f: F) -> Setting<U> where F: FnOnce(T)->U {
       self.and_then(|t, span| Setting::enable(f(t), span))
   }
+
+  pub fn and(self, set: Self) -> Self {
+    match (self,set) {
+        (Self::Undefined,_) => Self::Undefined,
+        (_,Self::Undefined) => Self::Undefined,
+        (_,set)             => set,
+    }
+  }
   pub fn and_then<F,U>(self, f: F) -> Setting<U> where F: FnOnce(T, Span)->Setting<U> {
       match self {
           Self::Undefined => Setting::undefined(),
           Self::Disabled { span } => Setting::disable(span),
           Self::Enabled { value, span } => f(value, span),
       }
+  }
+
+  pub fn or(self, set: Self) -> Self {
+    match (self,set) {
+        (Self::Undefined, res) => res,
+        (res,_) => res,
+    }
   }
 }
 
@@ -141,6 +166,51 @@ impl<T> From<(T, Span)> for Setting<T> {
   fn from((value, span): (T, Span)) -> Self {
       Self::enable(value, span)
   }
+}
+
+struct FlagSettingSerdeVisitor;
+impl<'de> Visitor<'de> for FlagSettingSerdeVisitor {
+    type Value = Setting<()>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a boolean, \"!\" or null")
+    }
+
+    fn visit_bool<E>(self, value: bool) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error, {
+        let span = Span::call_site();
+        Ok(
+            if value {
+                Setting::enable((), span)
+            } else {
+                Setting::disable(span)
+            }
+        )
+    }
+
+    fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error, {
+        if "!" == value {
+            Ok(Setting::disable(Span::call_site()))
+        } else {
+            Err(E::custom(format!("invalid string value: {:?}", value)))
+        }
+    }
+
+    fn visit_none<E>(self) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error, {
+        Ok(Setting::Undefined)
+    }
+}
+impl<'de> Deserialize<'de> for Setting<()> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de> {
+        deserializer.deserialize_any(FlagSettingSerdeVisitor)
+    }
 }
 
 pub trait ResultErrorContext {
