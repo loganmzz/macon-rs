@@ -3,6 +3,7 @@ use regex;
 use serde::{de::Expected, Deserialize, Serialize};
 use std::{borrow::Cow, collections::HashSet, env, fs, ops::Deref, path::{self, PathBuf}, sync::OnceLock};
 use syn::{Path, Type, TypePath, TypeReference};
+use crate::common::Setting;
 
 fn load_crate_config() -> anyhow::Result<Option<CrateConfiguration>> {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
@@ -314,38 +315,38 @@ enum StringFilter {
 /// Settings to apply when match.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-struct SettingSetValues {
+pub struct SettingSetValues<S> {
     /// struct settings.
     #[serde(default, rename = "struct")]
-    pub struct_: SettingSetStructValues,
+    pub struct_: SettingSetStructValues<S>,
     /// field settings.
     #[serde(default)]
-    pub field: SettingSetFieldValues,
+    pub field: SettingSetFieldValues<S>,
 }
 
 /// Struct settings.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, rename_all = "PascalCase")]
-struct SettingSetStructValues {
+pub struct SettingSetStructValues<S> {
     /// boolean indicating if struct derives Default. See [`Default` struct](macon).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default: Option<bool>,
+    #[serde(skip_serializing_if = "Setting::is_undefined")]
+    pub default: Setting<(), S>,
 }
 
 /// Field settings.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, rename_all = "PascalCase")]
-struct SettingSetFieldValues {
+pub struct SettingSetFieldValues<S> {
     /// * `false` or `"!"` to disable [`Option`] support. See [`Option` fields](macon#option-fields).
     /// * `<any string>` to enforce [`Option`] support. See [`Option` fields](macon#option-fields).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub option: Option<String>,
+    #[serde(skip_serializing_if = "Setting::is_undefined")]
+    pub option: Setting<Type, S>,
     /// boolean indicating if field derives [`Default`]. See [`Default` fields](macon#default-fields).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub default: Option<bool>,
+    #[serde(skip_serializing_if = "Setting::is_undefined")]
+    pub default: Setting<(), S>,
     /// Only `false` or `"!"` is supported. Disable [`Into`] for field setter. See [`Into` argument](macon#into-argument).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub into: Option<String>,
+    #[serde(skip_serializing_if = "Setting::is_undefined")]
+    pub into: Setting<(), S>,
 }
 
 /// Describe struct to compute settings from setting sets.

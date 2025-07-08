@@ -4,7 +4,6 @@ use std::{
 use proc_macro2::Span;
 use serde::{
     de::{
-        Self,
         Visitor,
     },
     Deserialize,
@@ -20,51 +19,41 @@ use syn::{
 pub enum Setting<T> {
   #[default]
   Undefined,
-  Disabled {
-    span: Span,
-  },
-  Enabled {
-    value: T,
-    span: Span,
-  },
+  Disabled,
+  Enabled(T),
 }
 
 impl<T: Copy> Copy for Setting<T> {}
+impl<T: Clone> Clone for Setting<T> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Undefined => Self::Undefined,
+            Self::Disabled => Self::Disabled,
+            Self::Enabled(value) => Self::Enabled(value.clone()),
+        }
+    }
+}
 
 impl<T: PartialEq> PartialEq for Setting<T> {
-fn eq(&self, other: &Self) -> bool {
-    match (self, other) {
-        (Self::Undefined, Self::Undefined) => true,
-        (Self::Disabled { .. }, Self::Disabled { .. }) => true,
-        (Self::Enabled { value: self_value, .. }, Self::Enabled { value: other_value, .. }) => self_value == other_value,
-        _ => false,
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Undefined, Self::Undefined) => true,
+            (Self::Disabled, Self::Disabled) => true,
+            (Self::Enabled(self_value), Self::Enabled(other_value)) => self_value == other_value,
+            _ => false,
+        }
     }
-}
-}
-impl<T: Clone> Clone for Setting<T> {
-fn clone(&self) -> Self {
-    match self {
-        Self::Undefined => Self::Undefined,
-        Self::Disabled { span } => Self::Disabled { span: span.clone() },
-        Self::Enabled { value, span }=> Self::Enabled { value: value.clone(), span: span.clone() },
-    }
-}
 }
 
 impl<T> Setting<T> {
   pub fn undefined() -> Self {
       Setting::Undefined
   }
-  pub fn disable(span: Span) -> Self {
-      Setting::Disabled {
-        span,
-      }
+  pub fn disable() -> Self {
+      Setting::Disabled
   }
-  pub fn enable(value: T, span: Span) -> Self {
-      Setting::Enabled {
-        value,
-        span,
-      }
+  pub fn enable(value: T) -> Self {
+      Setting::Enabled(value)
   }
 
   pub fn is_defined(&self) -> bool {
@@ -76,29 +65,22 @@ impl<T> Setting<T> {
   }
 
   pub fn is_disabled(&self) -> bool {
-      matches!(self, Self::Disabled { .. })
+      matches!(self, Self::Disabled)
   }
 
   pub fn is_enabled(&self) -> bool {
-      matches!(self, Self::Enabled { .. })
+      matches!(self, Self::Enabled(_))
   }
 
   pub fn value(&self) -> Option<&T> {
       match self {
-          Self::Enabled { ref value, .. } => Some(value),
+          Self::Enabled(ref value) => Some(value),
           _ => None,
       }
   }
-  pub fn span(&self) -> Option<&Span> {
-    match self {
-      Self::Undefined => None,
-      Self::Disabled { span } => Some(span),
-      Self::Enabled { span , .. } => Some(span),
-    }
-  }
 
   pub fn map<F,U>(self, f: F) -> Setting<U> where F: FnOnce(T)->U {
-      self.and_then(|t, span| Setting::enable(f(t), span))
+      self.and_then(|t| Setting::enable(f(t)))
   }
 
   pub fn and(self, set: Self) -> Self {
@@ -108,11 +90,11 @@ impl<T> Setting<T> {
         (_,set)             => set,
     }
   }
-  pub fn and_then<F,U>(self, f: F) -> Setting<U> where F: FnOnce(T, Span)->Setting<U> {
+  pub fn and_then<F,U>(self, f: F) -> Setting<U> where F: FnOnce(T)->Setting<U> {
       match self {
           Self::Undefined => Setting::undefined(),
-          Self::Disabled { span } => Setting::disable(span),
-          Self::Enabled { value, span } => f(value, span),
+          Self::Disabled => Setting::disable(),
+          Self::Enabled(value) => f(value),
       }
   }
 
@@ -125,47 +107,74 @@ impl<T> Setting<T> {
 }
 
 impl Setting<()> {
-  pub fn from_parse_nested_meta(nested: syn::meta::ParseNestedMeta) -> Result<Self> {
+  pub fn from_parse_nested_meta(nested: syn::meta::ParseNestedMeta) -> Result<(Self, Span)> {
       if nested.input.peek(Token![=]) {
           let value = nested
               .value()
               .map_err_context("Unable to parse setting as value")?;
           match value.parse::<Type>().map_err_context("Unable to parse setting type value")? {
-              Type::Never(_) => Ok(Self::disable(value.span())),
+              Type::Never(_) => Ok((Self::disable(), value.span())),
               _ => Err(nested.error(format!("Unsupported setting value {value:?}"))),
           }
       } else {
-          Ok(Self::enable((), nested.input.span()))
+          Ok((Self::enable(()), nested.input.span()))
       }
   }
 }
 
 impl Setting<Type> {
-  pub fn from_parse_nested_meta(nested: syn::meta::ParseNestedMeta) -> Result<Self> {
+  pub fn from_parse_nested_meta(nested: syn::meta::ParseNestedMeta) -> Result<(Self, Span)> {
       let value = nested
           .value()
           .map_err_context("Unable to parse setting value")?;
       let ty: Type = value
           .parse()
           .map_err_context("Unable to parse setting Type")?;
-      Ok(match ty {
+      Ok((
+        match ty {
           Type::Tuple(ref typetuple) => {
               if typetuple.elems.is_empty() {
-                  Setting::enable(ty, value.span())
+                  Setting::enable(ty)
               } else {
-                  Setting::disable(value.span())
+                  Setting::disable()
               }
           },
-          Type::Never(_) => Setting::disable(value.span()),
-          _ => Setting::enable(ty, value.span()),
-      })
+          Type::Never(_) => Setting::disable(),
+          _ => Setting::enable(ty),
+        },
+        value.span(),
+      ))
   }
 }
 
-impl<T> From<(T, Span)> for Setting<T> {
-  fn from((value, span): (T, Span)) -> Self {
-      Self::enable(value, span)
-  }
+impl From<&str> for Setting<Type> {
+    fn from(value: &str) -> Self {
+        if "!" == value || "false" == value {
+            Setting::disable()
+        } else {
+            let span = Span::call_site();
+            Setting::enable(syn::Type::Path(syn::TypePath { qself: None, path: syn::Path::from(syn::Ident::new_raw(value, span)) }))
+        }
+    }
+}
+impl From<bool> for Setting<()> {
+    fn from(value: bool) -> Self {
+        if value {
+            Setting::enable(())
+        } else {
+            Setting::disable()
+        }
+    }
+}
+
+impl From<Setting<String>> for Setting<()> {
+    fn from(setting: Setting<String>) -> Self {
+        match setting {
+            Setting::Undefined => Setting::undefined(),
+            Setting::Disabled => Setting::disable(),
+            Setting::Enabled(_) => Setting::enable(()),
+        }
+    }
 }
 
 struct FlagSettingSerdeVisitor;
@@ -179,21 +188,14 @@ impl<'de> Visitor<'de> for FlagSettingSerdeVisitor {
     fn visit_bool<E>(self, value: bool) -> std::result::Result<Self::Value, E>
         where
             E: serde::de::Error, {
-        let span = Span::call_site();
-        Ok(
-            if value {
-                Setting::enable((), span)
-            } else {
-                Setting::disable(span)
-            }
-        )
+        Ok(value.into())
     }
 
     fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
         where
             E: serde::de::Error, {
         if "!" == value {
-            Ok(Setting::disable(Span::call_site()))
+            Ok(Setting::disable())
         } else {
             Err(E::custom(format!("invalid string value: {:?}", value)))
         }
@@ -202,7 +204,7 @@ impl<'de> Visitor<'de> for FlagSettingSerdeVisitor {
     fn visit_none<E>(self) -> std::result::Result<Self::Value, E>
         where
             E: serde::de::Error, {
-        Ok(Setting::Undefined)
+        Ok(Setting::undefined())
     }
 }
 impl<'de> Deserialize<'de> for Setting<()> {
@@ -210,6 +212,43 @@ impl<'de> Deserialize<'de> for Setting<()> {
         where
             D: serde::Deserializer<'de> {
         deserializer.deserialize_any(FlagSettingSerdeVisitor)
+    }
+}
+struct TypeSettingSerdeVisitor;
+impl<'de> Visitor<'de> for TypeSettingSerdeVisitor {
+    type Value = Setting<Type>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("false as boolean or string, \"!\" or null")
+    }
+
+    fn visit_bool<E>(self, value: bool) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error, {
+        Ok(if !value {
+            Setting::disable()
+        } else {
+            "true".into()
+        })
+    }
+
+    fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error, {
+        Ok(value.into())
+    }
+
+    fn visit_none<E>(self) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error, {
+        Ok(Setting::undefined())
+    }
+}
+impl<'de> Deserialize<'de> for Setting<Type> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de> {
+        deserializer.deserialize_any(TypeSettingSerdeVisitor)
     }
 }
 

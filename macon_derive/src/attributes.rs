@@ -23,22 +23,22 @@ use syn::{
 
 #[derive(Debug, Default, PartialEq)]
 pub struct StructBuilder {
-    mode: Setting<String>,
+    mode: Setting<String, Span>,
     settings: SettingSetValues,
 }
 
 #[derive(Debug, Default, PartialEq)]
 pub struct StructBuilderFields {
-    option: Setting<()>,
-    default: Setting<()>,
-    into: Setting<()>,
+    option: Setting<(), Span>,
+    default: Setting<(), Span>,
+    into: Setting<(), Span>,
 }
 
 #[derive(Debug, Default, PartialEq)]
 pub struct FieldBuilder {
-    option: Setting<Type>,
-    default: Setting<()>,
-    into: Setting<()>,
+    option: Setting<Type, Span>,
+    default: Setting<(), Span>,
+    into: Setting<(), Span>,
 }
 
 #[derive(Debug, Default)]
@@ -47,10 +47,10 @@ pub struct Derives {
 }
 
 impl StructBuilder {
-    pub fn mode(&self) -> &Setting<String> {
+    pub fn mode(&self) -> &Setting<String, Span> {
         &self.mode
     }
-    pub fn mode_mut(&mut self) -> &mut Setting<String> {
+    pub fn mode_mut(&mut self) -> &mut Setting<String, Span> {
         &mut self.mode
     }
 
@@ -88,24 +88,45 @@ impl StructBuilder {
             } else if nested.path.is_ident("Option") {
                 //TODO proc_macro_diagnostic https://github.com/rust-lang/rust/issues/54140
                 eprintln!("WARNING: macon: Option at struct level be included in nested fields. e.g. `#[builder(fields(Option))]`");
-                let field_option = Setting::<()>::from_parse_nested_meta(nested)
-                    .map_err_context("Unable to parse Option for struct builder attribute")?;
-                self.settings.field.option =
+                self.settings.field.option = Setting::<(), Span>::from_parse_nested_meta(nested)
+                    .map_err_context("Unable to parse Option for struct builder attribute")?
+                    .into();
             } else if nested.path.is_ident("Default") {
-                self.default = Setting::<()>::from_parse_nested_meta(nested)
-                    .map_err_context("Unable to parse Default for struct builder attribute")?;
+                self.settings.struct_.default = (&Setting::<()>::from_parse_nested_meta(nested)
+                    .map_err_context("Unable to parse Default for struct builder attribute")?)
+                    .into();
             } else if nested.path.is_ident("Into") {
                 //TODO proc_macro_diagnostic https://github.com/rust-lang/rust/issues/54140
                 eprintln!("WARNING: macon: Into at struct level be included in nested fields. e.g. `#[builder(fields(Option))]`");
-                self.fields.into = Setting::<()>::from_parse_nested_meta(nested)
-                    .map_err_context("Unable to parse Into for struct builder attribute")?;
+                self.settings.field.into = (&Setting::<()>::from_parse_nested_meta(nested)
+                    .map_err_context("Unable to parse Into for struct builder attribute")?)
+                    .into();
             } else if nested.path.is_ident("fields") {
-                self.fields.with_parse_nested_meta(nested)?;
+                self.with_parse_nested_meta_fields(nested)?;
             } else {
                 return Err(nested.error(format!("Unsupported struct builder attribute option: {:?}", nested.path)));
             }
             Ok(())
         })
+    }
+
+    fn with_parse_nested_meta_fields(&mut self, attr: ParseNestedMeta) -> Result<()> {
+        attr.parse_nested_meta(|nested| {
+            if nested.path.is_ident("Option") {
+                self.settings.field.option = Setting::<Type>::from_parse_nested_meta(nested)
+                    .map_err_context("Unable to parse Option for fields struct builder attribute")?;
+            } else if nested.path.is_ident("Default") {
+                self.settings.field.default = Setting::<()>::from_parse_nested_meta(nested)
+                    .map_err_context("Unable to parse Default for fields struct builder attribute")?;
+            } else if nested.path.is_ident("Into") {
+                self.settings.field.into = Setting::<()>::from_parse_nested_meta(nested)
+                    .map_err_context("Unable to parse Into for fields struct builder attribute")?;
+            } else {
+                return Err(nested.error(format!("Unsupported fields struct builder attribute option: {:?}", nested.path)));
+            }
+            Ok(())
+        })?;
+        Ok(())
     }
 }
 
@@ -129,25 +150,6 @@ impl StructBuilderFields {
     }
     pub fn into_mut(&mut self) -> &mut Setting<()> {
         &mut self.into
-    }
-
-    fn with_parse_nested_meta(&mut self, attr: ParseNestedMeta) -> Result<()> {
-        attr.parse_nested_meta(|nested| {
-            if nested.path.is_ident("Option") {
-                self.option = Setting::<()>::from_parse_nested_meta(nested)
-                    .map_err_context("Unable to parse Option for fields struct builder attribute")?;
-            } else if nested.path.is_ident("Default") {
-                self.default = Setting::<()>::from_parse_nested_meta(nested)
-                    .map_err_context("Unable to parse Default for fields struct builder attribute")?;
-            } else if nested.path.is_ident("Into") {
-                self.into = Setting::<()>::from_parse_nested_meta(nested)
-                    .map_err_context("Unable to parse Into for fields struct builder attribute")?;
-            } else {
-                return Err(nested.error(format!("Unsupported fields struct builder attribute option: {:?}", nested.path)));
-            }
-            Ok(())
-        })?;
-        Ok(())
     }
 }
 
@@ -292,22 +294,22 @@ pub mod tests {
             "mode",
         );
         assert_eq!(
-            builder.default,
+            builder.settings.struct_.default,
             Setting::undefined(),
             "default",
         );
         assert_eq!(
-            builder.fields.into,
+            builder.settings.field.into,
             Setting::undefined(),
             "fields.into",
         );
         assert_eq!(
-            builder.fields.default,
+            builder.settings.field.default,
             Setting::undefined(),
             "fields.default",
         );
         assert_eq!(
-            builder.fields.option,
+            builder.settings.field.option,
             Setting::undefined(),
             "fields.option",
         );

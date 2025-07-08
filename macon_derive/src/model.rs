@@ -12,6 +12,7 @@ use proc_macro2::{
     Delimiter,
     Group,
     Literal,
+    Span,
     TokenStream,
 };
 use quote::{
@@ -19,7 +20,6 @@ use quote::{
     quote,
     ToTokens,
 };
-use syn::spanned::Spanned;
 use syn::{
     Data,
     DeriveInput,
@@ -32,7 +32,28 @@ use syn::{
     Result,
     Type,
     Visibility,
+    spanned::Spanned,
 };
+
+#[derive(Debug, Default)]
+pub struct SpanSetting<T> {
+    span: Option<Span>,
+    setting: Setting<T>,
+}
+impl<T> From<Setting<T>> for SpanSetting<T> {
+    fn from(setting: Setting<T>) -> Self {
+        SpanSetting { span: None, setting, }
+    }
+}
+impl<T> From<(Span, Setting<T>)> for SpanSetting<T> {
+    fn from(value: (Span, Setting<T>)) -> Self {
+        let (span, setting) = value;
+        SpanSetting { span: Some(span), setting, }
+    }
+}
+impl<T> SpanSetting<T> {
+  // FIXME to_pair
+}
 
 #[derive(Debug)]
 pub struct Builder {
@@ -49,7 +70,7 @@ pub struct Builder {
     /// Is Tuple struct `(a, b, c)` or Named one `{ a:A, b:B, c:C }`
     pub is_tuple: bool,
     /// Is Default implemented for struct
-    pub default: Setting<()>,
+    pub default: SpanSetting<()>,
 }
 
 #[derive(Debug,PartialEq)]
@@ -70,9 +91,9 @@ pub enum Setter {
 
 #[derive(Debug,Default)]
 pub struct PropertySettings {
-    pub option: Setting<Type>,
-    pub default: Setting<()>,
-    pub into: Setting<()>,
+    pub option: SpanSetting<Type>,
+    pub default: SpanSetting<()>,
+    pub into: SpanSetting<()>,
 }
 
 #[derive(Debug,Default,)]
@@ -80,11 +101,11 @@ pub struct Properties {
     /// Is Tuple struct `(a,b,c)` or Named one `{ a:A, b:B, c:C }`
     pub is_tuple: bool,
     /// Is Into supported for fields
-    pub into: Setting<()>,
+    pub into: SpanSetting<()>,
     /// Is Default supported for fields
-    pub default: Setting<()>,
+    pub default: SpanSetting<()>,
     /// Is Option supported for fields
-    pub option: Setting<()>,
+    pub option: SpanSetting<()>,
     /// Struct fields
     items: Vec<Property>,
 }
@@ -122,21 +143,21 @@ pub struct Property {
     /// Is Tuple struct field `(a,b,c)` or Named one `{ a:A, b:B, c:C }`
     pub is_tuple: bool,
     /// Is Option and associated wrapped type
-    pub option: Setting<Type>,
+    pub option: SpanSetting<Type>,
     /// Is Default supported for field
-    pub default: Setting<()>,
+    pub default: SpanSetting<()>,
     /// Is Into supported for field
-    pub into: Setting<()>,
+    pub into: SpanSetting<()>,
     /// Is Default supported for struct
-    pub struct_default: Setting<()>,
+    pub struct_default: SpanSetting<()>,
 }
 
-impl TryFrom<&Setting<String>> for Mode {
+impl TryFrom<&SpanSetting<String>> for Mode {
     type Error = Error;
-    fn try_from(value: &Setting<String>) -> Result<Self> {
+    fn try_from(value: &SpanSetting<String>) -> Result<Self> {
         Ok(match value {
             Setting::Undefined => Mode::default(),
-            Setting::Enabled { value, span } => {
+            Setting::Enabled(value) => {
                 match value.as_str() {
                     "Typestate" => Mode::Typestate,
                     "Result" => Mode::Result,
@@ -183,11 +204,11 @@ impl Builder {
 
     pub fn with_attributes(&mut self, builder: StructBuilder, derives: Derives) -> Result<()> {
         self.mode = builder.mode().try_into()?;
-        self.set_default(builder.default().clone());
+        self.set_default(builder.settings().struct_.default.clone().into());
 
-        self.properties.option  = builder.fields().option().clone();
-        self.properties.default = builder.fields().default().clone();
-        self.properties.into    = builder.fields().into_().clone();
+        self.properties.option  = builder.settings().field.option;
+        self.properties.default = builder.settings().field.default;
+        self.properties.into    = builder.settings().field.into;
 
         if ! self.default.is_defined() {
             if let Some(span) = derives.get_type("Default") {
