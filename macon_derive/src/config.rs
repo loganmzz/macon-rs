@@ -315,38 +315,38 @@ enum StringFilter {
 /// Settings to apply when match.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
-pub struct SettingSetValues<S> {
+pub struct SettingSetValues {
     /// struct settings.
     #[serde(default, rename = "struct")]
-    pub struct_: SettingSetStructValues<S>,
+    pub struct_: SettingSetStructValues,
     /// field settings.
     #[serde(default)]
-    pub field: SettingSetFieldValues<S>,
+    pub field: SettingSetFieldValues,
 }
 
 /// Struct settings.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, rename_all = "PascalCase")]
-pub struct SettingSetStructValues<S> {
+pub struct SettingSetStructValues {
     /// boolean indicating if struct derives Default. See [`Default` struct](macon).
     #[serde(skip_serializing_if = "Setting::is_undefined")]
-    pub default: Setting<(), S>,
+    pub default: Setting<()>,
 }
 
 /// Field settings.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields, rename_all = "PascalCase")]
-pub struct SettingSetFieldValues<S> {
+pub struct SettingSetFieldValues {
     /// * `false` or `"!"` to disable [`Option`] support. See [`Option` fields](macon#option-fields).
     /// * `<any string>` to enforce [`Option`] support. See [`Option` fields](macon#option-fields).
     #[serde(skip_serializing_if = "Setting::is_undefined")]
-    pub option: Setting<Type, S>,
+    pub option: Setting<String>,
     /// boolean indicating if field derives [`Default`]. See [`Default` fields](macon#default-fields).
     #[serde(skip_serializing_if = "Setting::is_undefined")]
-    pub default: Setting<(), S>,
+    pub default: Setting<()>,
     /// Only `false` or `"!"` is supported. Disable [`Into`] for field setter. See [`Into` argument](macon#into-argument).
     #[serde(skip_serializing_if = "Setting::is_undefined")]
-    pub into: Setting<(), S>,
+    pub into: Setting<()>,
 }
 
 /// Describe struct to compute settings from setting sets.
@@ -688,17 +688,17 @@ includes: {}
         assert_eq!("", settingset.id, "settingsets[0].id",);
         let mut criteria = settingset.criteria.iter();
         let criterionix = criteria.next();
-        assert_eq!(None, criterionix, "settingsets[0].criteria[0]",);
+        assert_eq!(Setting::undefined(), criterionix, "settingsets[0].criteria[0]",);
         assert_eq!(
-            None, settingset.settings.struct_.default,
+            Setting::undefined(), settingset.settings.struct_.default,
             "settingsets[0].settings.struct.Default",
         );
         assert_eq!(
-            None, settingset.settings.field.option,
+            Setting::undefined(), settingset.settings.field.option,
             "settingsets[0].settings.field.Option",
         );
         assert_eq!(
-            None, settingset.settings.field.default,
+            Setting::undefined(), settingset.settings.field.default,
             "settingsets[0].settings.field.Default",
         );
         assert_eq!(
@@ -729,7 +729,7 @@ includes: {}
                     }),],
                     settings: SettingSetValues {
                         struct_: SettingSetStructValues {
-                            default: Some(true),
+                            default: Setting::enable(()),
                         },
                         field: SettingSetFieldValues {
                             option: Some("false".to_owned()),

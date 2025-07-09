@@ -149,11 +149,19 @@ impl Setting<Type> {
 
 impl From<&str> for Setting<Type> {
     fn from(value: &str) -> Self {
+        let str_setting: Setting<String> = value.into();
+        str_setting.map(|value| {
+            let span = Span::call_site();
+            syn::Type::Path(syn::TypePath { qself: None, path: syn::Path::from(syn::Ident::new_raw(value, span)) })
+        })
+    }
+}
+impl From<&str> for Setting<String> {
+    fn from(value: &str) -> Self {
         if "!" == value || "false" == value {
             Setting::disable()
         } else {
-            let span = Span::call_site();
-            Setting::enable(syn::Type::Path(syn::TypePath { qself: None, path: syn::Path::from(syn::Ident::new_raw(value, span)) }))
+            Setting::enable(value.to_owned())
         }
     }
 }
@@ -214,7 +222,48 @@ impl<'de> Deserialize<'de> for Setting<()> {
         deserializer.deserialize_any(FlagSettingSerdeVisitor)
     }
 }
-struct TypeSettingSerdeVisitor;
+
+#[derive(Default)]
+struct StringSettingSerdeVisitor;
+impl<'de> Visitor<'de> for StringSettingSerdeVisitor {
+    type Value = Setting<String>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("false as boolean or string, \"!\" or null")
+    }
+
+    fn visit_bool<E>(self, value: bool) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error, {
+        Ok(if !value {
+            Setting::disable()
+        } else {
+            "true".into()
+        })
+    }
+
+    fn visit_str<E>(self, value: &str) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error, {
+        Ok(value.into())
+    }
+
+    fn visit_none<E>(self) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error, {
+        Ok(Setting::undefined())
+    }
+}
+impl<'de> Deserialize<'de> for Setting<String> {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de> {
+        deserializer.deserialize_any(StringSettingSerdeVisitor)
+    }
+}
+
+#[derive(Default)]
+struct TypeSettingSerdeVisitor(StringSettingSerdeVisitor);
 impl<'de> Visitor<'de> for TypeSettingSerdeVisitor {
     type Value = Setting<Type>;
 

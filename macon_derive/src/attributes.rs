@@ -6,6 +6,7 @@ use crate::config::{
     SettingSetFieldValues,
     SettingSetValues,
 };
+use crate::model::SpanSetting;
 use std::collections::HashMap;
 use proc_macro2::Span;
 use syn::{
@@ -23,7 +24,7 @@ use syn::{
 
 #[derive(Debug, Default, PartialEq)]
 pub struct StructBuilder {
-    mode: Setting<String, Span>,
+    mode: SpanSetting<String>,
     settings: SettingSetValues,
 }
 

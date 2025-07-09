@@ -35,10 +35,18 @@ use syn::{
     spanned::Spanned,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct SpanSetting<T> {
     span: Option<Span>,
     setting: Setting<T>,
+}
+impl <T> Default for SpanSetting<T> {
+    fn default() -> Self {
+        Self {
+            span: Default::default(),
+            setting: Default::default(),
+        }
+    }
 }
 impl<T> From<Setting<T>> for SpanSetting<T> {
     fn from(setting: Setting<T>) -> Self {
@@ -52,7 +60,9 @@ impl<T> From<(Span, Setting<T>)> for SpanSetting<T> {
     }
 }
 impl<T> SpanSetting<T> {
-  // FIXME to_pair
+  fn as_pair(&self) -> (Span, &Setting<T>) {
+    (self.span.as_ref().cloned().unwrap_or_else(Span::call_site), &self.setting)
+  }
 }
 
 #[derive(Debug)]
@@ -154,18 +164,18 @@ pub struct Property {
 
 impl TryFrom<&SpanSetting<String>> for Mode {
     type Error = Error;
-    fn try_from(value: &SpanSetting<String>) -> Result<Self> {
-        Ok(match value {
-            Setting::Undefined => Mode::default(),
-            Setting::Enabled(value) => {
+    fn try_from(span_setting: &SpanSetting<String>) -> Result<Self> {
+        Ok(match span_setting.as_pair() {
+            (_, Setting::Undefined) => Mode::default(),
+            (span, Setting::Enabled(value)) => {
                 match value.as_str() {
                     "Typestate" => Mode::Typestate,
                     "Result" => Mode::Result,
                     "Panic" => Mode::Panic,
-                    _ => return Err(Error::new(span.clone(), format!("Unsupported mode value {} for struct builder attribute", value))),
+                    _ => return Err(Error::new(span, format!("Unsupported mode value {} for struct builder attribute", value))),
                 }
             }
-            Setting::Disabled { span } => return Err(Error::new(span.clone(), format!("Unsupported disabled mode for struct builder attribute"))),
+            (span, Setting::Disabled) => return Err(Error::new(span, format!("Unsupported disabled mode for struct builder attribute"))),
         })
     }
 }
