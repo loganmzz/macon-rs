@@ -1,12 +1,11 @@
 use crate::common::{
     ResultErrorContext,
     Setting,
+    SpanSetting,
 };
 use crate::config::{
-    SettingSetFieldValues,
     SettingSetValues,
 };
-use crate::model::SpanSetting;
 use std::collections::HashMap;
 use proc_macro2::Span;
 use syn::{
@@ -25,21 +24,22 @@ use syn::{
 #[derive(Debug, Default, PartialEq)]
 pub struct StructBuilder {
     mode: SpanSetting<String>,
-    settings: SettingSetValues,
+    default: SpanSetting<()>,
+    fields: StructBuilderFields,
 }
 
 #[derive(Debug, Default, PartialEq)]
 pub struct StructBuilderFields {
-    option: Setting<(), Span>,
-    default: Setting<(), Span>,
-    into: Setting<(), Span>,
+    option: SpanSetting<()>,
+    default: SpanSetting<()>,
+    into: SpanSetting<()>,
 }
 
 #[derive(Debug, Default, PartialEq)]
 pub struct FieldBuilder {
-    option: Setting<Type, Span>,
-    default: Setting<(), Span>,
-    into: Setting<(), Span>,
+    option: SpanSetting<Type>,
+    default: SpanSetting<()>,
+    into: SpanSetting<()>,
 }
 
 #[derive(Debug, Default)]
@@ -48,18 +48,25 @@ pub struct Derives {
 }
 
 impl StructBuilder {
-    pub fn mode(&self) -> &Setting<String, Span> {
+    pub fn mode(&self) -> &SpanSetting<String> {
         &self.mode
     }
-    pub fn mode_mut(&mut self) -> &mut Setting<String, Span> {
+    pub fn mode_mut(&mut self) -> &mut SpanSetting<String> {
         &mut self.mode
     }
 
-    pub fn settings(&self) -> &SettingSetValues {
-        &self.settings
+    pub fn default(&self) -> &SpanSetting<()> {
+        &self.default
     }
-    pub fn settings_mut(&mut self) -> &mut SettingSetValues {
-        &mut self.settings
+    pub fn default_mut(&mut self) -> &SpanSetting<()> {
+        &mut self.default
+    }
+
+    pub fn fields(&self) -> &StructBuilderFields {
+        &self.fields
+    }
+    pub fn fields_mut(&mut self) -> &mut StructBuilderFields {
+        &mut self.fields
     }
 
     pub fn from_input(derive: &DeriveInput) -> Result<Self> {
@@ -85,22 +92,22 @@ impl StructBuilder {
                     .map_err_context("Unable to parse mode value for struct builder attribute")?
                     .parse()
                     .map_err_context("Unable to parse into Ident mode value for struct builder attribute")?;
-                self.mode = Setting::enable(value.to_string(), value.span());
+                self.mode = (value.span(), Setting::enable(value.to_string())).into();
             } else if nested.path.is_ident("Option") {
                 //TODO proc_macro_diagnostic https://github.com/rust-lang/rust/issues/54140
                 eprintln!("WARNING: macon: Option at struct level be included in nested fields. e.g. `#[builder(fields(Option))]`");
-                self.settings.field.option = Setting::<(), Span>::from_parse_nested_meta(nested)
+                self.fields.option = Setting::<()>::from_parse_nested_meta(nested)
                     .map_err_context("Unable to parse Option for struct builder attribute")?
                     .into();
             } else if nested.path.is_ident("Default") {
-                self.settings.struct_.default = (&Setting::<()>::from_parse_nested_meta(nested)
-                    .map_err_context("Unable to parse Default for struct builder attribute")?)
+                self.default = Setting::<()>::from_parse_nested_meta(nested)
+                    .map_err_context("Unable to parse Default for struct builder attribute")?
                     .into();
             } else if nested.path.is_ident("Into") {
                 //TODO proc_macro_diagnostic https://github.com/rust-lang/rust/issues/54140
                 eprintln!("WARNING: macon: Into at struct level be included in nested fields. e.g. `#[builder(fields(Option))]`");
-                self.settings.field.into = (&Setting::<()>::from_parse_nested_meta(nested)
-                    .map_err_context("Unable to parse Into for struct builder attribute")?)
+                self.fields.into = Setting::<()>::from_parse_nested_meta(nested)
+                    .map_err_context("Unable to parse Into for struct builder attribute")?
                     .into();
             } else if nested.path.is_ident("fields") {
                 self.with_parse_nested_meta_fields(nested)?;
@@ -114,14 +121,17 @@ impl StructBuilder {
     fn with_parse_nested_meta_fields(&mut self, attr: ParseNestedMeta) -> Result<()> {
         attr.parse_nested_meta(|nested| {
             if nested.path.is_ident("Option") {
-                self.settings.field.option = Setting::<Type>::from_parse_nested_meta(nested)
-                    .map_err_context("Unable to parse Option for fields struct builder attribute")?;
+                self.fields.option = Setting::<()>::from_parse_nested_meta(nested)
+                    .map_err_context("Unable to parse Option for fields struct builder attribute")?
+                    .into();
             } else if nested.path.is_ident("Default") {
-                self.settings.field.default = Setting::<()>::from_parse_nested_meta(nested)
-                    .map_err_context("Unable to parse Default for fields struct builder attribute")?;
+                self.fields.default = Setting::<()>::from_parse_nested_meta(nested)
+                    .map_err_context("Unable to parse Default for fields struct builder attribute")?
+                    .into();
             } else if nested.path.is_ident("Into") {
-                self.settings.field.into = Setting::<()>::from_parse_nested_meta(nested)
-                    .map_err_context("Unable to parse Into for fields struct builder attribute")?;
+                self.fields.into = Setting::<()>::from_parse_nested_meta(nested)
+                    .map_err_context("Unable to parse Into for fields struct builder attribute")?
+                    .into();
             } else {
                 return Err(nested.error(format!("Unsupported fields struct builder attribute option: {:?}", nested.path)));
             }
@@ -132,38 +142,38 @@ impl StructBuilder {
 }
 
 impl StructBuilderFields {
-    pub fn option(&self) -> &Setting<()> {
+    pub fn option(&self) -> &SpanSetting<()> {
         &self.option
     }
-    pub fn option_mut(&mut self) -> &mut Setting<()> {
+    pub fn option_mut(&mut self) -> &mut SpanSetting<()> {
         &mut self.option
     }
 
-    pub fn default(&self) -> &Setting<()> {
+    pub fn default(&self) -> &SpanSetting<()> {
         &self.default
     }
-    pub fn default_mut(&mut self) -> &mut Setting<()> {
+    pub fn default_mut(&mut self) -> &mut SpanSetting<()> {
         &mut self.default
     }
 
-    pub fn into_(&self) -> &Setting<()> {
+    pub fn into_(&self) -> &SpanSetting<()> {
         &self.into
     }
-    pub fn into_mut(&mut self) -> &mut Setting<()> {
+    pub fn into_mut(&mut self) -> &mut SpanSetting<()> {
         &mut self.into
     }
 }
 
 impl FieldBuilder {
-    pub fn option(&self) -> &Setting<Type> {
+    pub fn option(&self) -> &SpanSetting<Type> {
         &self.option
     }
 
-    pub fn default(&self) -> &Setting<()> {
+    pub fn default(&self) -> &SpanSetting<()> {
         &self.default
     }
 
-    pub fn into_(&self) -> &Setting<()> {
+    pub fn into_(&self) -> &SpanSetting<()> {
         &self.into
     }
 
@@ -185,35 +195,42 @@ impl FieldBuilder {
     fn with_meta_list(&mut self, meta_list: &MetaList) -> Result<()> {
         meta_list.parse_nested_meta(|nested| {
             if nested.path.is_ident("Option") {
-                if self.option.is_defined() {
+                if self.option.setting.is_defined() {
                     return Err(nested.error(format!("Option has been already specified ({:?}) for field builder attribute", self.option)));
                 }
-                self.option = Setting::<Type>::from_parse_nested_meta(nested)
-                    .map_err_context("Unable to parse Option for field builder attribute")?
-                    .and_then(|ty, span| {
-                        match ty {
-                            Type::Tuple(ref typetuple) => {
-                                if typetuple.elems.is_empty() {
-                                    Setting::enable(ty, span)
-                                } else {
-                                    Setting::disable(span)
-                                }
-                            },
-                            _ => Setting::enable(ty, span),
-                        }
-                    });
+                self.option = {
+                    let mut option: SpanSetting<Type> = Setting::<Type>::from_parse_nested_meta(nested)
+                        .map_err_context("Unable to parse Option for field builder attribute")?
+                        .into();
+                    option.setting = option.setting
+                        .and_then(|ty|
+                            match ty {
+                                Type::Tuple(ref typetuple) => {
+                                    if typetuple.elems.is_empty() {
+                                        Setting::enable(ty)
+                                    } else {
+                                        Setting::disable()
+                                    }
+                                },
+                                _ => Setting::enable(ty),
+                            }
+                        );
+                    option
+                }
             } else if nested.path.is_ident("Default") {
-                if self.default.is_defined() {
+                if self.default.setting.is_defined() {
                     return Err(nested.error(format!("Default has been already specified ({:?}) for field builder attribute", self.option)));
                 }
                 self.default = Setting::<()>::from_parse_nested_meta(nested)
-                    .map_err_context(format!("Unable to parse Default value for field builder attribute"))?;
+                    .map_err_context(format!("Unable to parse Default value for field builder attribute"))?
+                    .into();
             } else if nested.path.is_ident("Into") {
-                if self.into.is_defined() {
+                if self.into.setting.is_defined() {
                     return Err(nested.error(format!("Into has been already specified ({:?}) for field builder attribute", self.option)));
                 }
                 self.into = Setting::<()>::from_parse_nested_meta(nested)
-                    .map_err_context(format!("Unable to parse Into value for field builder attribute"))?;
+                    .map_err_context(format!("Unable to parse Into value for field builder attribute"))?
+                    .into();
             } else {
                 return Err(nested.error(format!("Unsupported option {:?} for field builder attribute", nested.path)));
             }
@@ -326,7 +343,7 @@ pub mod tests {
             .expect("StructBuilder::from_input");
         assert_eq!(
             builder.mode,
-            Setting::enable("Foo".to_string(), span()),
+            Setting::enable("Foo".to_string()),
             "mode",
         );
         assert_eq!(
@@ -366,7 +383,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.default,
-            Setting::enable((), span()),
+            Setting::enable(()),
             "default",
         );
         assert_eq!(
@@ -401,7 +418,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.default,
-            Setting::disable(span()),
+            Setting::disable(),
             "default",
         );
 
@@ -442,7 +459,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.fields.into,
-            Setting::enable((), span()),
+            Setting::enable(()),
             "fields.into",
         );
         assert_eq!(
@@ -477,7 +494,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.fields.into,
-            Setting::disable(span()),
+            Setting::disable(),
             "fields.into",
         );
         assert_eq!(
@@ -522,7 +539,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.fields.option,
-            Setting::enable((), span()),
+            Setting::enable(()),
             "fields.option",
         );
     }
@@ -557,7 +574,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.fields.option,
-            Setting::disable(span()),
+            Setting::disable(),
             "fields.option",
         );
     }
@@ -582,7 +599,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.fields.into,
-            Setting::enable((), span()),
+            Setting::enable(()),
             "fields.into",
         );
         assert_eq!(
@@ -617,7 +634,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.fields.into,
-            Setting::disable(span()),
+            Setting::disable(),
             "fields.into",
         );
         assert_eq!(
@@ -657,7 +674,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.fields.default,
-            Setting::enable((), span()),
+            Setting::enable(()),
             "fields.default",
         );
         assert_eq!(
@@ -692,7 +709,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.fields.default,
-            Setting::disable(span()),
+            Setting::disable(),
             "fields.default",
         );
         assert_eq!(
@@ -732,7 +749,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.fields.option,
-            Setting::enable((), span()),
+            Setting::enable(()),
             "fields.option",
         );
     }
@@ -767,7 +784,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.fields.option,
-            Setting::disable(span()),
+            Setting::disable(),
             "fields.option",
         );
     }
@@ -808,7 +825,7 @@ pub mod tests {
             .expect("FieldBuilder::from_field");
         assert_eq!(
             builder.default,
-            Setting::enable((), span()),
+            Setting::enable(()),
             "default",
         );
         assert_eq!(
@@ -834,7 +851,7 @@ pub mod tests {
             .expect("FieldBuilder::from_field");
         assert_eq!(
             builder.default,
-            Setting::disable(span()),
+            Setting::disable(),
             "default",
         );
         assert_eq!(
@@ -865,7 +882,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.into,
-            Setting::enable((), span()),
+            Setting::enable(()),
             "into",
         );
         assert_eq!(
@@ -891,7 +908,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.into,
-            Setting::disable(span()),
+            Setting::disable(),
             "into",
         );
         assert_eq!(
@@ -922,7 +939,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.option,
-            Setting::enable(parse_str::<Type>("Bar").unwrap(), span()),
+            Setting::enable(parse_str::<Type>("Bar").unwrap()),
             "option",
         );
     }
@@ -948,7 +965,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.option,
-            Setting::disable(span()),
+            Setting::disable(),
             "option",
         );
     }
