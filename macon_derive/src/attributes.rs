@@ -3,9 +3,6 @@ use crate::common::{
     Setting,
     SpanSetting,
 };
-use crate::config::{
-    SettingSetValues,
-};
 use std::collections::HashMap;
 use proc_macro2::Span;
 use syn::{
@@ -195,14 +192,13 @@ impl FieldBuilder {
     fn with_meta_list(&mut self, meta_list: &MetaList) -> Result<()> {
         meta_list.parse_nested_meta(|nested| {
             if nested.path.is_ident("Option") {
-                if self.option.setting.is_defined() {
+                if self.option.is_defined() {
                     return Err(nested.error(format!("Option has been already specified ({:?}) for field builder attribute", self.option)));
                 }
                 self.option = {
-                    let mut option: SpanSetting<Type> = Setting::<Type>::from_parse_nested_meta(nested)
-                        .map_err_context("Unable to parse Option for field builder attribute")?
-                        .into();
-                    option.setting = option.setting
+                    let (span, option) = Setting::<Type>::from_parse_nested_meta(nested)
+                        .map_err_context("Unable to parse Option for field builder attribute")?;
+                    option
                         .and_then(|ty|
                             match ty {
                                 Type::Tuple(ref typetuple) => {
@@ -214,18 +210,18 @@ impl FieldBuilder {
                                 },
                                 _ => Setting::enable(ty),
                             }
-                        );
-                    option
+                        )
+                        .spanned(span)
                 }
             } else if nested.path.is_ident("Default") {
-                if self.default.setting.is_defined() {
+                if self.default.is_defined() {
                     return Err(nested.error(format!("Default has been already specified ({:?}) for field builder attribute", self.option)));
                 }
                 self.default = Setting::<()>::from_parse_nested_meta(nested)
                     .map_err_context(format!("Unable to parse Default value for field builder attribute"))?
                     .into();
             } else if nested.path.is_ident("Into") {
-                if self.into.setting.is_defined() {
+                if self.into.is_defined() {
                     return Err(nested.error(format!("Into has been already specified ({:?}) for field builder attribute", self.option)));
                 }
                 self.into = Setting::<()>::from_parse_nested_meta(nested)
@@ -312,22 +308,22 @@ pub mod tests {
             "mode",
         );
         assert_eq!(
-            builder.settings.struct_.default,
+            builder.default,
             Setting::undefined(),
             "default",
         );
         assert_eq!(
-            builder.settings.field.into,
+            builder.fields.into,
             Setting::undefined(),
             "fields.into",
         );
         assert_eq!(
-            builder.settings.field.default,
+            builder.fields.default,
             Setting::undefined(),
             "fields.default",
         );
         assert_eq!(
-            builder.settings.field.option,
+            builder.fields.option,
             Setting::undefined(),
             "fields.option",
         );

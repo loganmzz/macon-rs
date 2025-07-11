@@ -13,7 +13,6 @@ use proc_macro2::{
     Delimiter,
     Group,
     Literal,
-    Span,
     TokenStream,
 };
 use quote::{
@@ -33,7 +32,6 @@ use syn::{
     Result,
     Type,
     Visibility,
-    spanned::Spanned,
 };
 
 #[derive(Debug)]
@@ -124,13 +122,13 @@ pub struct Property {
     /// Is Tuple struct field `(a,b,c)` or Named one `{ a:A, b:B, c:C }`
     pub is_tuple: bool,
     /// Is Option and associated wrapped type
-    pub option: SpanSetting<Type>,
+    pub option: Setting<Type>,
     /// Is Default supported for field
-    pub default: SpanSetting<()>,
+    pub default: Setting<()>,
     /// Is Into supported for field
-    pub into: SpanSetting<()>,
+    pub into: Setting<()>,
     /// Is Default supported for struct
-    pub struct_default: SpanSetting<()>,
+    pub struct_default: Setting<()>,
 }
 
 impl TryFrom<&SpanSetting<String>> for Mode {
@@ -191,7 +189,7 @@ impl Builder {
         self.properties.default = builder.fields().default().clone();
         self.properties.into    = builder.fields().into_().clone();
 
-        if ! self.default.setting.is_defined() {
+        if ! self.default.is_defined() {
             if let Some(span) = derives.get_type("Default") {
                 self.set_default((span.clone(), Setting::enable(())).into());
             }
@@ -249,16 +247,16 @@ impl Property {
         let name = ident.to_string();
         let builder_attribute = FieldBuilder::from_field(&field)
             .map_err_context(format!("Field {}", name))?;
-        let option = if builder_attribute.option().setting.is_undefined() {
+        let option = if builder_attribute.option().is_undefined() {
             if let Some(ty) = Self::get_option_arg(&field.ty)? {
                 Setting::enable(ty.clone())
             } else {
                 Setting::disable()
-            }.into()
+            }
         } else {
-            builder_attribute.option().clone()
+            builder_attribute.option().into()
         };
-        let default = if builder_attribute.default().setting.is_undefined() {
+        let default = if builder_attribute.default().is_undefined() {
             let default_types = match crate::config::get() {
                 Ok(config) => config.default_types(),
                 Err(err) => return Err(Error::new_spanned(&field, err)),
@@ -267,15 +265,11 @@ impl Property {
                 Setting::enable(())
             } else {
                 Setting::disable()
-            }.into()
+            }
         } else {
-            builder_attribute.default().clone()
+            builder_attribute.default().into()
         };
-        let into = if builder_attribute.into_().setting.is_undefined() {
-            builder.properties.into.clone()
-        } else {
-            builder_attribute.into_().clone()
-        };
+        let into = builder_attribute.into_().as_ref().or(builder.properties.into.as_ref()).cloned();
         Ok(Self {
             ordinal,
             name,
@@ -285,7 +279,7 @@ impl Property {
             option,
             default,
             into,
-            struct_default: builder.default.clone(),
+            struct_default: builder.default.as_ref().cloned(),
         })
     }
 
@@ -335,7 +329,7 @@ impl Property {
     }
 
     pub fn ty_into(&self) -> &Type {
-        self.option.setting.value().unwrap_or(&self.ty)
+        self.option.value().unwrap_or(&self.ty)
     }
 
     pub fn setter(&self) -> Cow<Ident> {
@@ -371,9 +365,9 @@ impl Property {
     }
 
     pub fn is_required(&self) -> bool {
-        ! self.option.setting.is_enabled() &&
-        ! self.default.setting.is_enabled() &&
-        ! self.struct_default.setting.is_enabled() &&
+        ! self.option.is_enabled() &&
+        ! self.default.is_enabled() &&
+        ! self.struct_default.is_enabled() &&
         true
     }
 
@@ -395,10 +389,10 @@ impl Property {
         let prefix = self.prefix();
         let ty = if ! self.is_required() {
             let mut ty = self.ty.to_token_stream();
-            if self.default.setting.is_enabled() {
+            if self.default.is_enabled() {
                 ty = quote!(::macon::Defaulting<#ty>);
             }
-            if self.struct_default.setting.is_enabled() {
+            if self.struct_default.is_enabled() {
                 ty = quote!(::macon::Keeping<#ty>);
             }
             ty
@@ -459,28 +453,28 @@ impl Property {
         let value = if self.name == target.name {
             match setter {
                 Setter::Standard => {
-                    let mut value = if ! self.into.setting.is_disabled() {
+                    let mut value = if ! self.into.is_disabled() {
                         quote!(#ident.into())
                     } else {
                         quote!(#ident)
                     };
-                    if self.option.setting.is_enabled() {
+                    if self.option.is_enabled() {
                         value = quote!(::core::option::Option::Some(#value));
                     }
-                    if self.default.setting.is_enabled() {
+                    if self.default.is_enabled() {
                         value = quote!(::macon::Defaulting::Set(#value));
                     }
-                    if self.struct_default.setting.is_enabled() {
+                    if self.struct_default.is_enabled() {
                         value = quote!(::macon::Keeping::Set(#value));
                     }
                     value
                 },
                 Setter::None => {
                     let mut value = quote!(::core::option::Option::None);
-                    if self.default.setting.is_enabled() {
+                    if self.default.is_enabled() {
                         value = quote!(::macon::Defaulting::Set(#value));
                     }
-                    if self.struct_default.setting.is_enabled() {
+                    if self.struct_default.is_enabled() {
                         value = quote!(::macon::Keeping::Set(#value));
                     }
                     value
@@ -488,21 +482,21 @@ impl Property {
                 Setter::Keep => quote!(::macon::Keeping::Keep),
                 Setter::Default => {
                     let mut value = quote!(::macon::Defaulting::Default);
-                    if self.struct_default.setting.is_enabled() {
+                    if self.struct_default.is_enabled() {
                         value = quote!(::macon::Keeping::Set(#value));
                     }
                     value
                 },
                 Setter::Optional => {
-                    let mut value = if ! self.into.setting.is_disabled() {
+                    let mut value = if ! self.into.is_disabled() {
                         quote!(#ident.map(::core::convert::Into::into))
                     } else {
                         quote!(#ident)
                     };
-                    if self.default.setting.is_enabled() {
+                    if self.default.is_enabled() {
                         value = quote!(::macon::Defaulting::Set(#value));
                     }
-                    if self.struct_default.setting.is_enabled() {
+                    if self.struct_default.is_enabled() {
                         value = quote!(::macon::Keeping::Set(#value));
                     }
                     value
@@ -518,10 +512,10 @@ impl Property {
     pub fn typestate_value(&self) -> TokenStream {
         let id = self.id();
         let mut value = quote!(self.#id);
-        if self.struct_default.setting.is_enabled() {
+        if self.struct_default.is_enabled() {
             value = quote!(#value.unwrap());
         }
-        if self.default.setting.is_enabled() {
+        if self.default.is_enabled() {
             value = quote!(#value.unwrap());
         }
         value
@@ -547,10 +541,10 @@ impl Property {
         let prefix = self.prefix();
         let mut ty = self.ty.to_token_stream();
         if ! self.is_required() {
-            if self.default.setting.is_enabled() {
+            if self.default.is_enabled() {
                 ty = quote!(::macon::Defaulting<#ty>);
             }
-            if self.struct_default.setting.is_enabled() {
+            if self.struct_default.is_enabled() {
                 ty = quote!(::macon::Keeping<#ty>);
             }
         } else {
@@ -565,10 +559,10 @@ impl Property {
         let mut value = match setter {
             Setter::Standard => {
                 let mut value = quote!(#ident);
-                if ! self.into.setting.is_disabled() {
+                if ! self.into.is_disabled() {
                     value = quote!(#value.into());
                 }
-                if self.option.setting.is_enabled() {
+                if self.option.is_enabled() {
                     value = quote!(::core::option::Option::Some(#value));
                 }
                 value
@@ -578,7 +572,7 @@ impl Property {
             Setter::Default => quote!(::macon::Defaulting::Default),
             Setter::Optional => {
                 let mut value = quote!(#ident);
-                if ! self.into.setting.is_disabled() {
+                if ! self.into.is_disabled() {
                     value = quote!(#value.map(::core::convert::Into::into));
                 }
                 value
@@ -587,11 +581,11 @@ impl Property {
         if ! self.is_required() {
             if setter != Setter::Keep {
                 if setter != Setter::Default {
-                    if self.default.setting.is_enabled() {
+                    if self.default.is_enabled() {
                         value = quote!(::macon::Defaulting::Set(#value));
                     }
                 }
-                if self.struct_default.setting.is_enabled() {
+                if self.struct_default.is_enabled() {
                     value = quote!(::macon::Keeping::Set(#value));
                 }
             }
@@ -605,10 +599,10 @@ impl Property {
         let id = self.id();
         let mut value = quote!(self.#id);
         if ! self.is_required() {
-            if self.struct_default.setting.is_enabled() {
+            if self.struct_default.is_enabled() {
                 value = quote!(#value.unwrap());
             }
-            if self.default.setting.is_enabled() {
+            if self.default.is_enabled() {
                 value = quote!(#value.unwrap());
             }
         } else {

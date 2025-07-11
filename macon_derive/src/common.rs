@@ -1,5 +1,5 @@
 use std::{
-    fmt,
+    fmt, ops::Deref,
 };
 use proc_macro2::Span;
 use serde::{
@@ -20,8 +20,8 @@ use syn::{
 
 #[derive(Debug)]
 pub struct SpanSetting<T> {
-    pub span: Option<Span>,
-    pub setting: Setting<T>,
+    span: Option<Span>,
+    setting: Setting<T>,
 }
 impl <T> Default for SpanSetting<T> {
     fn default() -> Self {
@@ -46,6 +46,17 @@ impl<T> From<(Span, Setting<T>)> for SpanSetting<T> {
     fn from(value: (Span, Setting<T>)) -> Self {
         let (span, setting) = value;
         SpanSetting { span: Some(span), setting, }
+    }
+}
+impl<T: Clone> From<&SpanSetting<T>> for Setting<T> {
+    fn from(value: &SpanSetting<T>) -> Self {
+        value.setting.clone()
+    }
+}
+impl<T> Deref for SpanSetting<T> {
+    type Target = Setting<T>;
+    fn deref(&self) -> &Self::Target {
+        &self.setting
     }
 }
 impl<T> SpanSetting<T> {
@@ -128,6 +139,18 @@ impl<T> Setting<T> {
       }
   }
 
+  pub fn as_ref(&self) -> Setting<&T> {
+    match self {
+        Self::Undefined => Setting::undefined(),
+        Self::Disabled => Setting::disable(),
+        Self::Enabled(value) => Setting::enable(value),
+    }
+  }
+
+  pub fn spanned(self, span: Span) -> SpanSetting<T> {
+    SpanSetting { span: Some(span), setting: self, }
+  }
+
   pub fn map<F,U>(self, f: F) -> Setting<U> where F: FnOnce(T)->U {
       self.and_then(|t| Setting::enable(f(t)))
   }
@@ -153,6 +176,18 @@ impl<T> Setting<T> {
         (res,_) => res,
     }
   }
+  pub fn or_else<F>(self, f: F) -> Self where F: FnOnce()->Self {
+    match self {
+        Self::Enabled(_) => self,
+        _ => f(),
+    }
+  }
+}
+
+impl<T: Clone> Setting<&T> {
+    pub fn cloned(&self) -> Setting<T> {
+        self.map(Clone::clone)
+    }
 }
 
 impl Setting<()> {

@@ -1,5 +1,5 @@
 pub mod data {
-    use std::{fs::File, io::BufReader, path::{Path, PathBuf}};
+    use std::{fs::File, io::BufReader, path::PathBuf};
 
     use serde::de::DeserializeOwned;
 

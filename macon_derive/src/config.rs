@@ -1,6 +1,6 @@
 use anyhow::Context;
 use regex;
-use serde::{de::Expected, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, collections::HashSet, env, fs, ops::Deref, path::{self, PathBuf}, sync::OnceLock};
 use syn::{Path, Type, TypePath, TypeReference};
 use crate::common::Setting;
@@ -351,7 +351,7 @@ pub struct SettingSetFieldValues {
 
 /// Describe struct to compute settings from setting sets.
 #[derive(Clone)]
-struct MatchingStruct<'a> {
+pub struct MatchingStruct<'a> {
     // Struct keys.
     keys: HashSet<&'a str>,
     // Struct name.
@@ -359,7 +359,7 @@ struct MatchingStruct<'a> {
 }
 /// Describe field to compute settings from setting sets.
 #[derive(Clone)]
-struct MatchingField<'a> {
+pub struct MatchingField<'a> {
     // Field keys.
     keys: HashSet<&'a str>,
     // Field name.
@@ -688,7 +688,7 @@ includes: {}
         assert_eq!("", settingset.id, "settingsets[0].id",);
         let mut criteria = settingset.criteria.iter();
         let criterionix = criteria.next();
-        assert_eq!(Setting::undefined(), criterionix, "settingsets[0].criteria[0]",);
+        assert_eq!(None, criterionix, "settingsets[0].criteria[0]",);
         assert_eq!(
             Setting::undefined(), settingset.settings.struct_.default,
             "settingsets[0].settings.struct.Default",
@@ -702,7 +702,7 @@ includes: {}
             "settingsets[0].settings.field.Default",
         );
         assert_eq!(
-            None, settingset.settings.field.into,
+            Setting::undefined(), settingset.settings.field.into,
             "settingsets[0].settings.field.Into",
         );
 
@@ -732,9 +732,9 @@ includes: {}
                             default: Setting::enable(()),
                         },
                         field: SettingSetFieldValues {
-                            option: Some("false".to_owned()),
-                            default: Some(true),
-                            into: Some("false".to_owned()),
+                            option: "false".into(),
+                            default: true.into(),
+                            into: false.into(),
                         },
                     },
                 },
@@ -750,12 +750,12 @@ includes: {}
                     }),],
                     settings: SettingSetValues {
                         struct_: SettingSetStructValues {
-                            default: Some(false),
+                            default: false.into(),
                         },
                         field: SettingSetFieldValues {
-                            option: Some("!".to_owned()),
-                            default: Some(false),
-                            into: Some("!".to_owned()),
+                            option: "!".into(),
+                            default: false.into(),
+                            into: false.into(),
                         },
                     },
                 },
@@ -763,11 +763,11 @@ includes: {}
                     id: "".to_owned(),
                     criteria: vec![],
                     settings: SettingSetValues {
-                        struct_: SettingSetStructValues { default: None },
+                        struct_: SettingSetStructValues { default: Setting::undefined() },
                         field: SettingSetFieldValues {
-                            option: Some("bool".to_owned()),
-                            default: None,
-                            into: None,
+                            option: "bool".into(),
+                            default: Setting::undefined(),
+                            into: Setting::undefined(),
                         },
                     },
                 },
@@ -779,28 +779,28 @@ includes: {}
     #[test]
     fn settingset_overrides_empty_empty() {
         let base = SettingSetValues {
-            struct_: SettingSetStructValues { default: None },
+            struct_: SettingSetStructValues { default: Setting::undefined() },
             field: SettingSetFieldValues {
-                option: None,
-                default: None,
-                into: None,
+                option: Setting::undefined(),
+                default: Setting::undefined(),
+                into: Setting::undefined(),
             },
         };
         let overrides = SettingSetValues {
-            struct_: SettingSetStructValues { default: None },
+            struct_: SettingSetStructValues { default: Setting::undefined() },
             field: SettingSetFieldValues {
-                option: None,
-                default: None,
-                into: None,
+                option: Setting::undefined(),
+                default: Setting::undefined(),
+                into: Setting::undefined(),
             },
         };
         assert_eq!(
             SettingSetValues {
-                struct_: SettingSetStructValues { default: None },
+                struct_: SettingSetStructValues { default: Setting::undefined() },
                 field: SettingSetFieldValues {
-                    option: None,
-                    default: None,
-                    into: None,
+                    option: Setting::undefined(),
+                    default: Setting::undefined(),
+                    into: Setting::undefined(),
                 },
             },
             base.overrides_with(overrides),
@@ -810,32 +810,32 @@ includes: {}
     #[test]
     fn settingset_overrides_empty_struct_default() {
         let base = SettingSetValues {
-            struct_: SettingSetStructValues { default: None },
+            struct_: SettingSetStructValues { default: Setting::undefined() },
             field: SettingSetFieldValues {
-                option: None,
-                default: None,
-                into: None,
+                option: Setting::undefined(),
+                default: Setting::undefined(),
+                into: Setting::undefined(),
             },
         };
         let overrides = SettingSetValues {
             struct_: SettingSetStructValues {
-                default: Some(true),
+                default: true.into(),
             },
             field: SettingSetFieldValues {
-                option: None,
-                default: None,
-                into: None,
+                option: Setting::undefined(),
+                default: Setting::undefined(),
+                into: Setting::undefined(),
             },
         };
         assert_eq!(
             SettingSetValues {
                 struct_: SettingSetStructValues {
-                    default: Some(true),
+                    default: true.into(),
                 },
                 field: SettingSetFieldValues {
-                    option: None,
-                    default: None,
-                    into: None,
+                    option: Setting::undefined(),
+                    default: Setting::undefined(),
+                    into: Setting::undefined(),
                 },
             },
             base.overrides_with(overrides),
@@ -846,33 +846,33 @@ includes: {}
     fn settingset_overrides_struct_not_default_struct_default() {
         let base = SettingSetValues {
             struct_: SettingSetStructValues {
-                default: Some(false),
+                default: false.into(),
             },
             field: SettingSetFieldValues {
-                option: None,
-                default: None,
-                into: None,
+                option: Setting::undefined(),
+                default: Setting::undefined(),
+                into: Setting::undefined(),
             },
         };
         let overrides = SettingSetValues {
             struct_: SettingSetStructValues {
-                default: Some(true),
+                default: true.into(),
             },
             field: SettingSetFieldValues {
-                option: None,
-                default: None,
-                into: None,
+                option: Setting::undefined(),
+                default: Setting::undefined(),
+                into: Setting::undefined(),
             },
         };
         assert_eq!(
             SettingSetValues {
                 struct_: SettingSetStructValues {
-                    default: Some(true),
+                    default: true.into(),
                 },
                 field: SettingSetFieldValues {
-                    option: None,
-                    default: None,
-                    into: None,
+                    option: Setting::undefined(),
+                    default: Setting::undefined(),
+                    into: Setting::undefined(),
                 },
             },
             base.overrides_with(overrides),
