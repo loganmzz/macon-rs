@@ -9,7 +9,7 @@ settingsets:
     field:
       Option: "FieldOption1"
       Default: true
-      Into: "FieldInto1"
+      Into: true
 - criteria:
   - includes:
       field_name:
@@ -20,4 +20,4 @@ settingsets:
     field:
       Option: "FieldOption2"
       Default: false
-      Into: "FieldInto2"
+      Into: false

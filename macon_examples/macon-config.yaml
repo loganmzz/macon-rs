@@ -1,4 +1,9 @@
-default_types:
-  includes:
-  - Person
-  - Address
+settingsets:
+- id: "Crate primitives"
+  criteria:
+  - includes:
+      field_type:
+        matches: "^Person|Address$"
+  settings:
+    field:
+      Default: true

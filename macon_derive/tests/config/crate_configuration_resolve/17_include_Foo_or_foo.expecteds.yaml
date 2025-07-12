@@ -4,28 +4,28 @@ Foo:
   field:
     Option: "FieldOption1"
     Default: true
-    Into: "FieldInto1"
+    Into: true
 Foo.foo:
   struct:
     Default: false
   field:
     Option: "FieldOption2"
     Default: false
-    Into: "FieldInto2"
+    Into: false
 Foo.bar:
   struct:
     Default: true
   field:
     Option: "FieldOption1"
     Default: true
-    Into: "FieldInto1"
+    Into: true
 Foo.boo:
   struct:
     Default: true
   field:
     Option: "FieldOption1"
     Default: true
-    Into: "FieldInto1"
+    Into: true
 Bar: {}
 Bar.foo:
   struct:
@@ -33,4 +33,4 @@ Bar.foo:
   field:
     Option: "FieldOption2"
     Default: false
-    Into: "FieldInto2"
+    Into: false

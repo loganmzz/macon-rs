@@ -36,9 +36,11 @@ struct StructTuple(
 #[test]
 #[should_panic(expected="Field id is missing\nField value is missing")]
 fn named_build_default_implicit() {
-    StructNamed::builder()
+    let built = StructNamed::builder()
         .mandatory("/dev/null")
         .build();
+    eprintln!("{:#?}", built);
+
 }
 
 #[test]
@@ -86,9 +88,10 @@ fn named_build_full() {
 #[test]
 #[should_panic(expected="Field 0 is missing\nField 1 is missing")]
 fn tuple_build_default_implicit() {
-    StructTuple::builder()
+    let built = StructTuple::builder()
         .set3("/dev/null")
         .build();
+    eprintln!("{:#?}", built);
 }
 
 #[test]

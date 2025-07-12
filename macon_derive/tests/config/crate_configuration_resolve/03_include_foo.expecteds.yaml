@@ -5,7 +5,7 @@ Foo.foo:
   field:
     Option: "FieldOption"
     Default: true
-    Into: "FieldInto"
+    Into: "!"
 Foo.bar: {}
 Foo.boo: {}
 Bar: {}
@@ -15,4 +15,4 @@ Bar.foo:
   field:
     Option: "FieldOption"
     Default: true
-    Into: "FieldInto"
+    Into: "!"

@@ -1,18 +1,22 @@
 use crate::common::{
     ResultErrorContext,
     Setting,
-    SpanSetting,
+    SpanSetting, ToCanonicalString,
 };
+use crate::config;
 use crate::attributes::{
     Derives,
     FieldBuilder,
     StructBuilder,
 };
 use std::borrow::Cow;
+use std::cell::OnceCell;
+use std::ops::Deref;
 use proc_macro2::{
     Delimiter,
     Group,
     Literal,
+    Span,
     TokenStream,
 };
 use quote::{
@@ -108,6 +112,35 @@ impl Properties {
     }
 }
 
+struct SettingSetProvider<'a> {
+    struct_name: &'a str, field_name: &'a str, field_type: &'a str,
+    inner: OnceCell<Result<config::SettingSetValues>>,
+}
+impl<'a> SettingSetProvider<'a> {
+    fn for_field(struct_name: &'a str, field_name: &'a str, field_type: &'a str) -> Self {
+        Self {
+            struct_name,
+            field_name,
+            field_type,
+            inner: OnceCell::new(),
+        }
+    }
+
+    fn get(&self) -> Result<&config::SettingSetValues> {
+        self.inner
+            .get_or_init(|| {
+                config::get()
+                    .as_ref()
+                    .map_err(|err| Error::new(Span::call_site(), err))
+                    .map(|cfg| cfg.resolve_settings(
+                        config::MatchingStruct::new(self.struct_name),
+                        Some(config::MatchingField::new(self.field_name, self.field_type)),
+                    ))
+            })
+            .as_ref()
+            .map_err(Clone::clone)
+    }
+}
 
 #[derive(Debug)]
 pub struct Property {
@@ -122,7 +155,7 @@ pub struct Property {
     /// Is Tuple struct field `(a,b,c)` or Named one `{ a:A, b:B, c:C }`
     pub is_tuple: bool,
     /// Is Option and associated wrapped type
-    pub option: Setting<Type>,
+    pub option: Setting<String>,
     /// Is Default supported for field
     pub default: Setting<()>,
     /// Is Into supported for field
@@ -245,31 +278,72 @@ impl Property {
     pub fn from_field(builder: &Builder, is_tuple: bool, ordinal: usize, field: Field) -> Result<Self> {
         let ident = field.ident.clone().unwrap_or_else(|| format_ident!("v{}", ordinal));
         let name = ident.to_string();
+        let struct_name = builder.ident.to_string();
         let builder_attribute = FieldBuilder::from_field(&field)
             .map_err_context(format!("Field {}", name))?;
+
+        let struct_name = struct_name.as_str();
+        let field_name = name.as_str();
+        let type_str = field.ty.to_canonical_string();
+        let field_type = type_str.as_str();
+        let settingset = SettingSetProvider::for_field(struct_name, field_name, field_type);
+
         let option = if builder_attribute.option().is_undefined() {
-            if let Some(ty) = Self::get_option_arg(&field.ty)? {
-                Setting::enable(ty.clone())
-            } else {
+            if builder.properties.option.is_undefined() {
+                let settingset = settingset.get()?;
+                if settingset.field.option.is_undefined() {
+                    if let Some(ty) = Self::get_option_arg(&field.ty)? {
+                        Setting::enable(ty.to_canonical_string())
+                    } else {
+                        Setting::disable()
+                    }
+                } else {
+                    settingset.field.option.clone()
+                }
+            } else if builder.properties.option.is_disabled() {
                 Setting::disable()
+            } else {
+                return Err(Error::new(builder.properties.option.span(), format!("Option at struct level can only be disabled")))
             }
         } else {
             builder_attribute.option().into()
         };
         let default = if builder_attribute.default().is_undefined() {
-            let default_types = match crate::config::get() {
-                Ok(config) => config.default_types(),
-                Err(err) => return Err(Error::new_spanned(&field, err)),
-            };
-            if default_types.match_type(&field.ty) {
-                Setting::enable(())
+            if builder.properties.default.is_undefined() {
+                let settingset = settingset.get()?;
+                if settingset.field.default.is_undefined() {
+                    let default_types = match crate::config::get() {
+                        Ok(config) => config.default_types(),
+                        Err(err) => return Err(Error::new_spanned(&field, err)),
+                    };
+                    if default_types.match_type(&field.ty) {
+                        Setting::enable(())
+                    } else {
+                        Setting::disable()
+                    }
+                } else {
+                    settingset.field.default
+                }
             } else {
-                Setting::disable()
+                (&builder.properties.default).into()
             }
         } else {
             builder_attribute.default().into()
         };
-        let into = builder_attribute.into_().as_ref().or(builder.properties.into.as_ref()).cloned();
+        let into = if builder_attribute.into_().is_undefined() {
+            if builder.properties.into.is_undefined() {
+                let settingset = settingset.get()?;
+                if settingset.field.into.is_undefined() {
+                    Setting::disable()
+                } else {
+                    settingset.field.into
+                }
+            } else {
+                builder.properties.into.deref().clone()
+            }
+        } else {
+            builder_attribute.into_().deref().clone()
+        };
         Ok(Self {
             ordinal,
             name,
@@ -328,8 +402,8 @@ impl Property {
         format_ident!("{}", self.name.to_uppercase())
     }
 
-    pub fn ty_into(&self) -> &Type {
-        self.option.value().unwrap_or(&self.ty)
+    pub fn ty_into(&self) -> String {
+        self.option.value().cloned().unwrap_or_else(|| self.ty.to_canonical_string())
     }
 
     pub fn setter(&self) -> Cow<Ident> {
@@ -836,8 +910,8 @@ pub mod tests {
         let optional = iter.next().expect("builder.properties[0]");
         assert_eq!(optional.ident, format_ident!("optional"));
         assert_eq!(
-            optional.option.value().map(|t| t.to_token_stream().to_string()),
-            Some(String::from("String")),
+            optional.option.value(),
+            Some(&String::from("String")),
             "builder.properties[0].option"
         );
     }
@@ -859,8 +933,9 @@ pub mod tests {
 
         let optional0 = iter.next().expect("builder.properties[0]");
         assert_eq!(optional0.ident, format_ident!("optional0"), "builder.properties[0]");
-        assert!(
-            optional0.option.is_disabled(),
+        assert_eq!(
+            optional0.option,
+            Setting::disable(),
             "builder.properties[0].option.disabled"
         );
         assert_eq!(

@@ -1,7 +1,7 @@
 use anyhow::Context;
 use regex;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, collections::HashSet, env, fs, ops::Deref, path::{self, PathBuf}, sync::OnceLock};
+use std::{borrow::Cow, collections::HashSet, env, fs, hash::Hash, ops::Deref, path::{self, PathBuf}, sync::OnceLock};
 use syn::{Path, Type, TypePath, TypeReference};
 use crate::common::Setting;
 
@@ -326,7 +326,7 @@ pub struct SettingSetValues {
 
 /// Struct settings.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields, rename_all = "PascalCase")]
+#[serde(default, deny_unknown_fields, rename_all = "PascalCase")]
 pub struct SettingSetStructValues {
     /// boolean indicating if struct derives Default. See [`Default` struct](macon).
     #[serde(skip_serializing_if = "Setting::is_undefined")]
@@ -334,8 +334,9 @@ pub struct SettingSetStructValues {
 }
 
 /// Field settings.
-#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
-#[serde(deny_unknown_fields, rename_all = "PascalCase")]
+#[derive(Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq)]
+#[serde(default, deny_unknown_fields, rename_all = "PascalCase")]
 pub struct SettingSetFieldValues {
     /// * `false` or `"!"` to disable [`Option`] support. See [`Option` fields](macon#option-fields).
     /// * `<any string>` to enforce [`Option`] support. See [`Option` fields](macon#option-fields).
@@ -366,6 +367,25 @@ pub struct MatchingField<'a> {
     name: &'a str,
     // Canonical string representation of field type tokens. As Rust macros only operate on full text / token, it can't match on full/resolved type pathes; only as text as found in source code.
     type_str: &'a str,
+}
+
+impl<'a> MatchingStruct<'a> {
+    pub fn new(name: &'a  str) -> Self {
+        Self {
+            keys: HashSet::new(),
+            name,
+        }
+    }
+}
+
+impl<'a> MatchingField<'a> {
+    pub fn new(name: &'a  str, type_str: &'a  str) -> Self {
+        Self {
+            keys: HashSet::new(),
+            name,
+            type_str,
+        }
+    }
 }
 
 impl TypeSetConfiguration {
@@ -732,7 +752,7 @@ includes: {}
                             default: Setting::enable(()),
                         },
                         field: SettingSetFieldValues {
-                            option: "false".into(),
+                            option: "false".try_into().unwrap(),
                             default: true.into(),
                             into: false.into(),
                         },
@@ -753,7 +773,7 @@ includes: {}
                             default: false.into(),
                         },
                         field: SettingSetFieldValues {
-                            option: "!".into(),
+                            option: "!".try_into().unwrap(),
                             default: false.into(),
                             into: false.into(),
                         },
@@ -765,7 +785,7 @@ includes: {}
                     settings: SettingSetValues {
                         struct_: SettingSetStructValues { default: Setting::undefined() },
                         field: SettingSetFieldValues {
-                            option: "bool".into(),
+                            option: "bool".try_into().unwrap(),
                             default: Setting::undefined(),
                             into: Setting::undefined(),
                         },
@@ -877,9 +897,6 @@ includes: {}
             },
             base.overrides_with(overrides),
         )
-    }
-
-    fn assert_resolve(case: &str) {
     }
 
     #[test]

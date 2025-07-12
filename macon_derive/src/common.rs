@@ -2,6 +2,7 @@ use std::{
     fmt, ops::Deref,
 };
 use proc_macro2::Span;
+use quote::ToTokens;
 use serde::{
     de::{
         Visitor,
@@ -60,6 +61,10 @@ impl<T> Deref for SpanSetting<T> {
     }
 }
 impl<T> SpanSetting<T> {
+  pub fn span(&self) -> Span {
+    self.span.unwrap_or_else(Span::call_site)
+  }
+
   pub fn as_pair(&self) -> (Span, &Setting<T>) {
     (self.span.as_ref().cloned().unwrap_or_else(Span::call_site), &self.setting)
   }
@@ -231,15 +236,20 @@ impl Setting<Type> {
   }
 }
 
+impl TryFrom<Setting<&str>> for Setting<Type> {
+    type Error = Error;
+    fn try_from(value: Setting<&str>) -> std::result::Result<Self, Self::Error> {
+        match value {
+            Setting::Undefined => Ok(Setting::undefined()),
+            Setting::Disabled => Ok(Setting::disable()),
+            Setting::Enabled(value) => parse_str::<Type>(value).map(|ty| Self::enable(ty)),
+        }
+    }
+}
 impl TryFrom<&str> for Setting<Type> {
     type Error = Error;
     fn try_from(value: &str) -> std::result::Result<Self, Self::Error> {
-        let str_setting: Setting<String> = value.into();
-        match str_setting {
-            Setting::Undefined => Ok(Setting::undefined()),
-            Setting::Disabled  => Ok(Setting::disable()),
-            Setting::Enabled(value) => parse_str::<Type>(&value).map(|ty| Self::enable(ty)),
-        }
+        Setting::enable(value).try_into()
     }
 }
 impl From<&str> for Setting<String> {
@@ -300,6 +310,12 @@ impl<'de> Visitor<'de> for FlagSettingSerdeVisitor {
             E: serde::de::Error, {
         Ok(Setting::undefined())
     }
+
+    fn visit_unit<E>(self) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error, {
+        Ok(Setting::undefined())
+    }
 }
 impl<'de> Deserialize<'de> for Setting<()> {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
@@ -335,6 +351,12 @@ impl<'de> Visitor<'de> for StringSettingSerdeVisitor {
     }
 
     fn visit_none<E>(self) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error, {
+        Ok(Setting::undefined())
+    }
+
+    fn visit_unit<E>(self) -> std::result::Result<Self::Value, E>
         where
             E: serde::de::Error, {
         Ok(Setting::undefined())
@@ -384,6 +406,12 @@ impl<'de> Visitor<'de> for TypeSettingSerdeVisitor {
             E: serde::de::Error, {
         Ok(Setting::undefined())
     }
+
+    fn visit_unit<E>(self) -> std::result::Result<Self::Value, E>
+        where
+            E: serde::de::Error, {
+        Ok(Setting::undefined())
+    }
 }
 impl<'de> Deserialize<'de> for Setting<Type> {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
@@ -416,4 +444,27 @@ impl<T> ResultErrorContext for Result<T> {
           self
       }
   }
+}
+
+pub trait ToCanonicalString {
+    fn to_canonical_string(&self) -> String;
+}
+impl ToCanonicalString for syn::Type {
+    fn to_canonical_string(&self) -> String {
+        self.to_token_stream().to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ToCanonicalString;
+    use syn::{
+        parse_quote,
+    };
+
+    #[test]
+    fn to_canonnical_string_type_usize() {
+        let ty: syn::Type = parse_quote!(usize);
+        assert_eq!("usize", ty.to_canonical_string());
+    }
 }

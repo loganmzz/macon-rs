@@ -9,11 +9,11 @@ settingsets:
     field:
       Option: "FieldOption1"
       Default: true
-      Into: "FieldInto1"
+      Into: true
 - criteria:
   - includes:
       field_name:
         equals: "foo"
   settings:
     field:
-      Into: "FieldInto2"
+      Into: false

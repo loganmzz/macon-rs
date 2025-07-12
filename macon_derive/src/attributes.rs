@@ -1,7 +1,7 @@
 use crate::common::{
     ResultErrorContext,
     Setting,
-    SpanSetting,
+    SpanSetting, ToCanonicalString,
 };
 use std::collections::HashMap;
 use proc_macro2::Span;
@@ -34,7 +34,7 @@ pub struct StructBuilderFields {
 
 #[derive(Debug, Default, PartialEq)]
 pub struct FieldBuilder {
-    option: SpanSetting<Type>,
+    option: SpanSetting<String>,
     default: SpanSetting<()>,
     into: SpanSetting<()>,
 }
@@ -162,7 +162,7 @@ impl StructBuilderFields {
 }
 
 impl FieldBuilder {
-    pub fn option(&self) -> &SpanSetting<Type> {
+    pub fn option(&self) -> &SpanSetting<String> {
         &self.option
     }
 
@@ -203,12 +203,12 @@ impl FieldBuilder {
                             match ty {
                                 Type::Tuple(ref typetuple) => {
                                     if typetuple.elems.is_empty() {
-                                        Setting::enable(ty)
+                                        Setting::enable(ty.to_canonical_string())
                                     } else {
                                         Setting::disable()
                                     }
                                 },
-                                _ => Setting::enable(ty),
+                                _ => Setting::enable(ty.to_canonical_string()),
                             }
                         )
                         .spanned(span)
@@ -935,7 +935,7 @@ pub mod tests {
         );
         assert_eq!(
             builder.option,
-            Setting::enable(parse_str::<Type>("Bar").unwrap()),
+            Setting::enable("Bar".to_owned()),
             "option",
         );
     }

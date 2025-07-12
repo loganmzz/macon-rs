@@ -6,13 +6,13 @@ Foo.bar:
   field:
     Option: "FieldOption"
     Default: true
-    Into: "FieldInto"
+    Into: "!"
 Foo.boo:
   struct:
     Default: true
   field:
     Option: "FieldOption"
     Default: true
-    Into: "FieldInto"
+    Into: "!"
 Bar: {}
 Bar.foo: {}
