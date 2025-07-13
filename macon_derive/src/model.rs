@@ -72,13 +72,6 @@ pub enum Setter {
     Optional,
 }
 
-#[derive(Debug,Default)]
-pub struct PropertySettings {
-    pub option: SpanSetting<Type>,
-    pub default: SpanSetting<()>,
-    pub into: SpanSetting<()>,
-}
-
 #[derive(Debug,Default,)]
 pub struct Properties {
     /// Is Tuple struct `(a,b,c)` or Named one `{ a:A, b:B, c:C }`
@@ -155,7 +148,7 @@ pub struct Property {
     /// Is Tuple struct field `(a,b,c)` or Named one `{ a:A, b:B, c:C }`
     pub is_tuple: bool,
     /// Is Option and associated wrapped type
-    pub option: Setting<String>,
+    pub option: Setting<Type>,
     /// Is Default supported for field
     pub default: Setting<()>,
     /// Is Into supported for field
@@ -293,12 +286,12 @@ impl Property {
                 let settingset = settingset.get()?;
                 if settingset.field.option.is_undefined() {
                     if let Some(ty) = Self::get_option_arg(&field.ty)? {
-                        Setting::enable(ty.to_canonical_string())
+                        Setting::enable(ty.clone())
                     } else {
                         Setting::disable()
                     }
                 } else {
-                    settingset.field.option.clone()
+                    settingset.field.option.as_ref().try_map(|value| syn::parse_str(&value))?
                 }
             } else if builder.properties.option.is_disabled() {
                 Setting::disable()
@@ -333,11 +326,7 @@ impl Property {
         let into = if builder_attribute.into_().is_undefined() {
             if builder.properties.into.is_undefined() {
                 let settingset = settingset.get()?;
-                if settingset.field.into.is_undefined() {
-                    Setting::disable()
-                } else {
-                    settingset.field.into
-                }
+                settingset.field.into
             } else {
                 builder.properties.into.deref().clone()
             }
@@ -402,11 +391,11 @@ impl Property {
         format_ident!("{}", self.name.to_uppercase())
     }
 
-    pub fn ty_into(&self) -> String {
-        self.option.value().cloned().unwrap_or_else(|| self.ty.to_canonical_string())
+    pub fn ty_into(&self) -> &Type {
+        self.option.value().unwrap_or(&self.ty)
     }
 
-    pub fn setter(&self) -> Cow<Ident> {
+    pub fn setter(&self) -> Cow<'_, Ident> {
         if self.is_tuple {
             Cow::Owned(format_ident!("set{}", self.ordinal))
         } else {
@@ -792,17 +781,12 @@ impl Properties {
 
 #[cfg(test)]
 pub mod tests {
-    use proc_macro2::Span;
     use syn::{
         parse_quote,
         parse_str,
     };
 
     use super::*;
-
-    fn span() -> Span {
-        Span::call_site()
-    }
 
     fn newbuilder(derive: DeriveInput) -> Builder {
         Builder::from_input(derive).expect("Builder::from_input")
@@ -911,7 +895,7 @@ pub mod tests {
         assert_eq!(optional.ident, format_ident!("optional"));
         assert_eq!(
             optional.option.value(),
-            Some(&String::from("String")),
+            Some(&parse_str("String").unwrap()),
             "builder.properties[0].option"
         );
     }

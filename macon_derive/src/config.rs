@@ -1,7 +1,15 @@
 use anyhow::Context;
 use regex;
 use serde::{Deserialize, Serialize};
-use std::{borrow::Cow, collections::HashSet, env, fs, hash::Hash, ops::Deref, path::{self, PathBuf}, sync::OnceLock};
+use std::{
+    borrow::Cow,
+    collections::HashSet,
+    env,
+    fs,
+    ops::Deref,
+    path::{self, PathBuf},
+    sync::OnceLock,
+};
 use syn::{Path, Type, TypePath, TypeReference};
 use crate::common::Setting;
 
@@ -111,6 +119,7 @@ impl Configuration {
         Ok(that)
     }
 
+    #[cfg(test)]
     pub fn read(config_path: &PathBuf) -> anyhow::Result<Self> {
         read_create_config(config_path)?
             .map(Self::create)
@@ -433,9 +442,11 @@ impl SettingSetCriterionIX {
 }
 
 impl SettingSetCriterion {
+    #[cfg(test)]
     pub fn includes(criterion: SettingSetCriterion) -> SettingSetCriterionIXWrapper {
         SettingSetCriterionIXWrapper(SettingSetCriterionIX::Includes(criterion))
     }
+    #[cfg(test)]
     pub fn excludes(criterion: SettingSetCriterion) -> SettingSetCriterionIXWrapper {
         SettingSetCriterionIXWrapper(SettingSetCriterionIX::Excludes(criterion))
     }
@@ -508,11 +519,13 @@ impl Deref for SetFilterWrapper {
 }
 
 impl SetFilter {
+    #[cfg(test)]
     pub fn equals<S: ToString>(values: Vec<S>) -> Option<SetFilterWrapper> {
         Some(SetFilterWrapper(SetFilter::Equals(
             values.into_iter().map(|s| s.to_string()).collect(),
         )))
     }
+    #[cfg(test)]
     pub fn contains<S: ToString>(values: Vec<S>) -> Option<SetFilterWrapper> {
         Some(SetFilterWrapper(SetFilter::Contains(
             values.into_iter().map(|s| s.to_string()).collect(),
@@ -542,9 +555,11 @@ impl Deref for StringFilterWrapper {
 }
 
 impl StringFilter {
+    #[cfg(test)]
     pub fn equals<S: ToString>(value: S) -> Option<StringFilterWrapper> {
         Some(StringFilterWrapper(StringFilter::Equals(value.to_string())))
     }
+    #[cfg(test)]
     pub fn matches<S: ToString>(value: S) -> Option<StringFilterWrapper> {
         Some(StringFilterWrapper(StringFilter::Matches(
             value.to_string(),

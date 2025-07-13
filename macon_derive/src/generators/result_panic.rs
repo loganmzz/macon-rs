@@ -62,7 +62,7 @@ impl ResultPanicGenerator {
             let argtype = if ! f.into.is_disabled() {
                 typevar.to_token_stream()
             } else {
-                ty.to_token_stream()
+                quote!(#ty)
             };
             let generic = if ! f.into.is_disabled() {
                 quote!(#typevar: ::core::convert::Into<#ty>)

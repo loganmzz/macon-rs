@@ -159,6 +159,13 @@ impl<T> Setting<T> {
   pub fn map<F,U>(self, f: F) -> Setting<U> where F: FnOnce(T)->U {
       self.and_then(|t| Setting::enable(f(t)))
   }
+  pub fn try_map<F,U>(self, f: F) -> Result<Setting<U>> where F: FnOnce(T)->Result<U> {
+    Ok(match self {
+        Self::Undefined => Setting::undefined(),
+        Self::Disabled => Setting::disable(),
+        Self::Enabled(value) => Setting::enable(f(value)?),
+    })
+  }
 
   pub fn and(self, set: Self) -> Self {
     match (self,set) {
@@ -242,7 +249,9 @@ impl TryFrom<Setting<&str>> for Setting<Type> {
         match value {
             Setting::Undefined => Ok(Setting::undefined()),
             Setting::Disabled => Ok(Setting::disable()),
-            Setting::Enabled(value) => parse_str::<Type>(value).map(|ty| Self::enable(ty)),
+            Setting::Enabled(value) => parse_str::<Type>(value)
+                .map(|ty| Self::enable(ty))
+                .map_err_context(format!("can't convert setting value {:?} to a type", value)),
         }
     }
 }
